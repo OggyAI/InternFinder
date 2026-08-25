@@ -1,0 +1,109 @@
+{
+  "count": 3915,
+  "mean": 112728.9,
+  "__CLASS__": "Adzuna::API::Response::JobSearchResults",
+  "__note": "REAL captured Adzuna response (au, what_phrase=\"Cyber Security SOC Analyst\", 2026-08-25), trimmed to 3 results. Unlike adzuna.sample.json these are not hand-built - this file exists to prove the zod schema parses live output.",
+  "results": [
+    {
+      "company": {
+        "__CLASS__": "Adzuna::API::Response::Company",
+        "display_name": "Equity Trustees"
+      },
+      "__CLASS__": "Adzuna::API::Response::Job",
+      "id": "5821196112",
+      "title": "Cyber Security Analyst",
+      "contract_time": "full_time",
+      "latitude": -37.806509,
+      "location": {
+        "display_name": "Melbourne, Melbourne Region",
+        "area": [
+          "Australia",
+          "Victoria",
+          "Melbourne Region",
+          "Melbourne"
+        ],
+        "__CLASS__": "Adzuna::API::Response::Location"
+      },
+      "redirect_url": "https://www.adzuna.com.au/details/5821196112?utm_medium=api&utm_source=f2007c7b",
+      "adref": "eyJhbGciOiJIUzI1NiJ9.eyJpIjoiNTgyMTE5NjExMiIsInMiOiJOaHVtRVR1ZzhSR1NyY1lBdkpydVp3In0.w-QeMI3FRYviIyftknK7R8eW-wR_5aWPAHixcb-NTfY",
+      "salary_is_predicted": "0",
+      "description": "28th July, 2026 EQT is investing in the future of its cyber security capability, and this newly created Cyber Security Analyst role is central to that. You'll play a key role in our day-to-day security operations. Monitoring threats, supporting incident response, managing vulnerabilities, and helping to keep EQT's systems, data, and services protected. Working closely with our Cyber Security Lead and a collaborative technology team, you'll contribute to a growing function where your work has re…",
+      "category": {
+        "__CLASS__": "Adzuna::API::Response::Category",
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "longitude": 144.957935,
+      "created": "2026-07-31T00:43:32Z"
+    },
+    {
+      "description": "28th July, 2026 EQT is investing in the future of its cyber security capability, and this newly created Cyber Security Analyst role is central to that. You'll play a key role in our day-to-day security operations. Monitoring threats, supporting incident response, managing vulnerabilities, and helping to keep EQT's systems, data, and services protected. Working closely with our Cyber Security Lead and a collaborative technology team, you'll contribute to a growing function where your work has re…",
+      "salary_is_predicted": "0",
+      "adref": "eyJhbGciOiJIUzI1NiJ9.eyJzIjoiTmh1bUVUdWc4UkdTcmNZQXZKcnVadyIsImkiOiI1ODQyNDk2NzI4In0.lqYsSn43Xci1M8AXNXrXBVZYVKIDuqMkKynukz4OtdE",
+      "longitude": 144.970267,
+      "category": {
+        "tag": "it-jobs",
+        "label": "IT Jobs",
+        "__CLASS__": "Adzuna::API::Response::Category"
+      },
+      "created": "2026-08-15T10:33:35Z",
+      "redirect_url": "https://www.adzuna.com.au/details/5842496728?utm_medium=api&utm_source=f2007c7b",
+      "title": "CYBER SECURITY ANALYST",
+      "contract_time": "full_time",
+      "location": {
+        "display_name": "Melbourne CBD, Melbourne",
+        "area": [
+          "Australia",
+          "Victoria",
+          "Melbourne Region",
+          "Melbourne",
+          "Melbourne CBD"
+        ],
+        "__CLASS__": "Adzuna::API::Response::Location"
+      },
+      "latitude": -37.814563,
+      "company": {
+        "__CLASS__": "Adzuna::API::Response::Company",
+        "display_name": "Equity Trustees"
+      },
+      "__CLASS__": "Adzuna::API::Response::Job",
+      "id": "5842496728"
+    },
+    {
+      "redirect_url": "https://www.adzuna.com.au/details/5821153860?utm_medium=api&utm_source=f2007c7b",
+      "category": {
+        "__CLASS__": "Adzuna::API::Response::Category",
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "longitude": 145.18866,
+      "description": "About the company Kombee Technologies is a global IT services and consulting company specialising in digital transformation and custom software solutions. Established in 2011, the company partners with businesses across Australia, New Zealand, India, and other international markets to deliver innovative technology solutions that improve operational efficiency and support business growth. Role overview We are seeking an experienced Systems Analyst to join our growing technology team. The success…",
+      "adref": "eyJhbGciOiJIUzI1NiJ9.eyJzIjoiTmh1bUVUdWc4UkdTcmNZQXZKcnVadyIsImkiOiI1ODIxMTUzODYwIn0.eK2NQfHsaHZY6FtCkmmOaDSBVwQHMJFeLtbC27-vHtQ",
+      "__CLASS__": "Adzuna::API::Response::Job",
+      "company": {
+        "__CLASS__": "Adzuna::API::Response::Company",
+        "display_name": "Kombee Pty Ltd"
+      },
+      "salary_min": 110000,
+      "latitude": -37.90935,
+      "title": "Systems Analyst",
+      "contract_type": "permanent",
+      "contract_time": "full_time",
+      "salary_max": 110000,
+      "created": "2026-07-31T00:05:20Z",
+      "salary_is_predicted": "0",
+      "id": "5821153860",
+      "location": {
+        "__CLASS__": "Adzuna::API::Response::Location",
+        "area": [
+          "Australia",
+          "Victoria",
+          "Melbourne Region",
+          "Monash Area",
+          "Wheelers Hill"
+        ],
+        "display_name": "Wheelers Hill, Monash Area"
+      }
+    }
+  ]
+}

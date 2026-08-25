@@ -47,11 +47,15 @@ export function compileKeywords(keywords: FilterKeywordRow[]): CompiledKeyword[]
       // Multi-word terms tolerate hyphens and extra whitespace, so
       // "Cyber Security" also matches "cyber-security" and "Cyber  Security".
       const body = k.term.trim().split(/\s+/).map(escapeRe).join('[\\s-]*');
-      // whole_word exists because "IT" is a real keyword here: without a word
-      // boundary it matches security, monitor, editing, recruiting — i.e.
-      // everything. Longer distinctive terms don't need the constraint.
-      const pattern = k.whole_word ? `(?<![a-z0-9])(?:${body})(?![a-z0-9])` : body;
-      return { term: k.term, kind: k.kind, weight: k.weight, re: new RegExp(pattern, 'i') };
+      // Two INDEPENDENT guards, and IT needs both.
+      //
+      // whole_word stops IT matching *security*, *monitor*, *editing*.
+      // case_sensitive stops IT matching the pronoun "it" — which the first
+      // live poll proved matters, because without it a Medical Receptionist
+      // and a Cocktail Bartender both "matched" the keyword IT.
+      const pattern = k.whole_word ? `(?<![A-Za-z0-9])(?:${body})(?![A-Za-z0-9])` : body;
+      const flags = k.case_sensitive ? '' : 'i';
+      return { term: k.term, kind: k.kind, weight: k.weight, re: new RegExp(pattern, flags) };
     });
 }
 
@@ -110,9 +114,24 @@ export function prefilter(
     }
   }
 
-  const matchedKeywords = compiled
+  const textMatches = compiled
     .filter((k) => k.kind === 'include' && k.re.test(text))
     .map((k) => k.term);
+
+  // Fall back to the provider's own match. Adzuna searches the full ad and
+  // returns a truncated teaser, so a phrase can be genuinely present and
+  // invisible to us. Rejecting those would discard listings the source has
+  // already confirmed. Excludes are NOT waived by this - a provider match
+  // gets a listing past the include gate, nothing more.
+  const matchedKeywords =
+    textMatches.length > 0
+      ? textMatches
+      : listing.providerMatchedTerm
+        ? [listing.providerMatchedTerm]
+        : [];
+
+  const keywordMatchSource: PrefilterResult['keywordMatchSource'] =
+    textMatches.length > 0 ? 'text' : matchedKeywords.length > 0 ? 'provider' : 'none';
 
   if (matchedKeywords.length === 0) {
     reasons.push('no_keyword_match');
@@ -156,6 +175,7 @@ export function prefilter(
     status: reasons.length === 0 ? 'passed' : 'rejected',
     reasons,
     matchedKeywords,
+    keywordMatchSource,
     distanceKm,
     suburb: loc.suburb,
     state: loc.state,

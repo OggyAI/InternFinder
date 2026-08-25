@@ -3,45 +3,44 @@ import type { FilterKeywordRow, FilterRow } from '@intern-finder/core';
 /**
  * Turning the editable keyword table into API queries.
  *
- * Neither provider will accept 30 keywords in one request and return anything
- * useful, and issuing one request per keyword would burn the free-tier budget
- * in a single poll. So keywords are sorted by their configured weight and
- * chunked into a handful of OR-groups — highest-value terms get queried first,
- * and if the budget runs out mid-poll the terms we lost are the ones that
- * mattered least.
+ * THIS WAS WRONG THE FIRST TIME, and the first live poll is what exposed it.
  *
- * This reads the keyword rows every time, so adding a keyword in the dashboard
- * changes what gets queried on the very next cycle.
+ * The original approach batched six keywords into one request using Adzuna's
+ * `what_or`, on the assumption that it OR-ed the *phrases*. It does not — it
+ * OR-es individual WORDS. So a group containing "Security Operations", "Blue
+ * Team" and "Information Security" matched any ad containing "operations", or
+ * "team", or "information". That returned 3,915 results, led with a Medical
+ * Receptionist and a Cocktail Bartender, and made the API call almost
+ * worthless as a filter.
+ *
+ * Measured against the live API:
+ *      what_or  "Cyber Security SOC Analyst"  -> 3915 results, mostly junk
+ *   what_phrase "Cyber Security"              ->  150 results, all relevant
+ *   what_phrase "IT Support"                  ->   96 results, all relevant
+ *
+ * So: one exact-phrase request per keyword. More calls, but each one is worth
+ * something, and the daily budget in `sources` is what keeps that honest.
+ * Keywords are issued highest-weight first, so if the budget runs out
+ * mid-poll the terms we lose are the ones that matter least.
  */
 
-export interface QueryGroup {
-  /** Terms to OR together in one request. */
-  terms: string[];
-  /** Ordering only, for logs. */
+export interface KeywordQuery {
+  /** A single exact phrase to search for. */
+  term: string;
+  /** Ordering only, for logs and for deciding what to drop when out of budget. */
   weight: number;
 }
 
-export function buildQueryGroups(
+export function buildKeywordQueries(
   keywords: FilterKeywordRow[],
-  opts: { groupSize?: number; maxGroups?: number } = {},
-): QueryGroup[] {
-  const groupSize = opts.groupSize ?? 6;
-  const maxGroups = opts.maxGroups ?? 4;
-
-  const includes = keywords
+  opts: { limit?: number } = {},
+): KeywordQuery[] {
+  const queries = keywords
     .filter((k) => k.kind === 'include' && k.is_active)
-    .sort((a, b) => b.weight - a.weight);
+    .sort((a, b) => b.weight - a.weight)
+    .map((k) => ({ term: k.term, weight: k.weight }));
 
-  const groups: QueryGroup[] = [];
-  for (let i = 0; i < includes.length && groups.length < maxGroups; i += groupSize) {
-    const chunk = includes.slice(i, i + groupSize);
-    if (chunk.length === 0) break;
-    groups.push({
-      terms: chunk.map((k) => k.term),
-      weight: chunk.reduce((sum, k) => sum + k.weight, 0) / chunk.length,
-    });
-  }
-  return groups;
+  return opts.limit ? queries.slice(0, opts.limit) : queries;
 }
 
 /**
@@ -58,7 +57,7 @@ export function locationQuery(filter: FilterRow): string {
     .trim();
 }
 
-/** Small helper so adapters can be polite between paginated requests. */
+/** Small helper so adapters can be polite between requests. */
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }

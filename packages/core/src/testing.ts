@@ -40,7 +40,17 @@ function kw(
   wholeWord = false,
   weight = 1,
 ): FilterKeywordRow {
-  return { id: nextId(), term, kind, weight, whole_word: wholeWord, is_active: true };
+  // Mirrors the migration rule: an all-caps initialism matches case-sensitively.
+  const caseSensitive = /^[A-Z0-9]{2,6}$/.test(term);
+  return {
+    id: nextId(),
+    term,
+    kind,
+    weight,
+    whole_word: wholeWord,
+    case_sensitive: caseSensitive,
+    is_active: true,
+  };
 }
 
 function pref(
@@ -114,6 +124,7 @@ export function makeListing(overrides: Partial<NormalizedListing> = {}): Normali
     salaryMax: null,
     salaryIsPredicted: false,
     postedDate: new Date('2026-08-22T00:00:00Z'),
+    providerMatchedTerm: null,
     providerHints: {},
     raw: {},
     ...overrides,

@@ -11,6 +11,7 @@ import { makeTestFilterSet } from '@intern-finder/core/testing';
 import { AdzunaResponse, normalizeAdzunaJob } from './sources/adzuna';
 import { JoobleResponse, normalizeJoobleJob } from './sources/jooble';
 import adzunaFixture from './fixtures/adzuna.sample.json' with { type: 'json' };
+import adzunaCaptured from './fixtures/adzuna.captured.json' with { type: 'json' };
 import joobleFixture from './fixtures/jooble.sample.json' with { type: 'json' };
 
 /**
@@ -30,10 +31,10 @@ const filterSet = makeTestFilterSet();
 
 function normaliseAll(): NormalizedListing[] {
   const adzuna = AdzunaResponse.parse(adzunaFixture)
-    .results.map(normalizeAdzunaJob)
+    .results.map((j) => normalizeAdzunaJob(j))
     .filter((l): l is NormalizedListing => l !== null);
   const jooble = JoobleResponse.parse(joobleFixture)
-    .jobs.map(normalizeJoobleJob)
+    .jobs.map((j) => normalizeJoobleJob(j))
     .filter((l): l is NormalizedListing => l !== null);
   return [...adzuna, ...jooble];
 }
@@ -73,6 +74,40 @@ describe('fixture parsing', () => {
   it('carries the untouched provider payload through to raw', () => {
     const { listing } = find('Service Desk Analyst');
     expect(listing.raw).toMatchObject({ source: 'seek.com.au' });
+  });
+});
+
+describe('real captured Adzuna traffic', () => {
+  // adzuna.sample.json is hand-built to exercise specific filter paths.
+  // adzuna.captured.json is a genuine response, so this is the test that the
+  // zod schema matches what Adzuna actually sends rather than what its docs
+  // describe. Re-capture it if the shape ever drifts.
+  it('parses without loss', () => {
+    const parsed = AdzunaResponse.parse(adzunaCaptured);
+    expect(parsed.results).toHaveLength(adzunaCaptured.results.length);
+  });
+
+  it('normalises every captured result', () => {
+    const out = AdzunaResponse.parse(adzunaCaptured)
+      .results.map((j) => normalizeAdzunaJob(j, 'Cyber Security'))
+      .filter((l): l is NormalizedListing => l !== null);
+    expect(out).toHaveLength(adzunaCaptured.results.length);
+    for (const l of out) {
+      expect(l.title.length).toBeGreaterThan(0);
+      expect(l.url).toMatch(/^https?:/);
+      expect(l.providerMatchedTerm).toBe('Cyber Security');
+    }
+  });
+
+  it('confirms the live quirks the adapter was written for', () => {
+    const j = AdzunaResponse.parse(adzunaCaptured).results[0]!;
+    // salary_is_predicted really does arrive as a string, not a boolean.
+    expect(typeof j.salary_is_predicted).toBe('string');
+    // Descriptions really are truncated to 500 characters, which is why
+    // signal detection so often lands on 'unknown'.
+    expect(j.description!.length).toBe(500);
+    // area[] is ordered least-specific-first, the opposite of display_name.
+    expect(j.location!.area![0]).toBe('Australia');
   });
 });
 

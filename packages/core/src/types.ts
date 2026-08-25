@@ -58,6 +58,9 @@ export const FilterKeywordRow = z.object({
   kind: KeywordKind,
   weight: z.coerce.number(),
   whole_word: z.boolean(),
+  /** Match with exact capitalisation. Essential for IT, which otherwise
+   *  matches the pronoun "it" in every job ad in existence. */
+  case_sensitive: z.boolean().default(false),
   is_active: z.boolean(),
 });
 export type FilterKeywordRow = z.infer<typeof FilterKeywordRow>;
@@ -122,6 +125,17 @@ export interface NormalizedListing {
   salaryMax: number | null;
   salaryIsPredicted: boolean;
   postedDate: Date | null;
+  /**
+   * The search term whose query returned this listing, when the source was
+   * queried per-keyword.
+   *
+   * This matters because Adzuna full-text searches the WHOLE ad but returns
+   * only a 500-character teaser. A `what_phrase` hit therefore proves the
+   * phrase is in the ad even when it is nowhere in the text we received —
+   * without this, 401 listings in the first live poll were rejected as
+   * `no_keyword_match` despite the provider having already confirmed a match.
+   */
+  providerMatchedTerm: string | null;
   /** Structured hints the provider gave us directly; beats text sniffing. */
   providerHints: {
     commitment?: Commitment;
@@ -148,6 +162,8 @@ export interface PrefilterResult {
   reasons: string[];
   /** Include-keyword terms that matched. Empty means nothing matched. */
   matchedKeywords: string[];
+  /** How the keyword requirement was satisfied — useful when auditing recall. */
+  keywordMatchSource: 'text' | 'provider' | 'none';
   distanceKm: number | null;
   suburb: string | null;
   state: string | null;

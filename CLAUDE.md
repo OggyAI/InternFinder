@@ -83,9 +83,22 @@ before trusting Phase 2 output.
 
 ## 5. Gotchas that have already bitten
 
-- **`whole_word` on short keywords.** Bare `IT` without a word boundary matches
-  *security*, *monitor*, *editing*, *recruiting* — it passes everything. Same
+- **`whole_word` and `case_sensitive` are two different guards, and `IT` needs
+  both.** Without a word boundary, bare `IT` matches *security*, *monitor*,
+  *editing*. With a boundary but case-insensitive, it matches the pronoun
+  *"it"* — which is in every job ad ever written, and made the first live poll
+  return a Medical Receptionist and a Cocktail Bartender. Same boundary issue
   for `Intern` matching *internal*.
+- **Adzuna's `what_or` ORs WORDS, not phrases.** `what_or="Cyber Security SOC
+  Analyst"` returns anything containing *analyst*, or *security*, or
+  *operations* — 3,915 results, mostly junk. Use `what_phrase`, one exact
+  phrase per request (150 results, all relevant). This costs about one call
+  per keyword per poll, which is why the Adzuna cadence is 6-hourly.
+- **Adzuna searches the full ad but returns a 500-char teaser.** A phrase can
+  be genuinely present and invisible in what we receive, so a `what_phrase`
+  hit is treated as keyword evidence via `providerMatchedTerm`. It gets a
+  listing past the include gate and nothing more — excludes still apply.
+  Note this also caps Phase 2: Claude will only ever see 500 characters.
 - **Adzuna's predicted salaries.** `salary_is_predicted` arrives as the string
   `"1"`, and a predicted salary is **not** evidence a role is paid. Treating it
   as such would mark every silent listing paid and suppress exactly the unpaid

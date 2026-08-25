@@ -6,7 +6,7 @@ import {
   type Commitment,
   type NormalizedListing,
 } from '@intern-finder/core';
-import { buildQueryGroups, locationQuery, sleep } from './query';
+import { buildKeywordQueries, locationQuery, sleep } from './query';
 import type { FetchResult, SourceAdapter } from './types';
 
 /**
@@ -83,7 +83,10 @@ function stripHtml(s: string): string {
   return s.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-export function normalizeJoobleJob(job: z.infer<typeof JoobleJob>): NormalizedListing | null {
+export function normalizeJoobleJob(
+  job: z.infer<typeof JoobleJob>,
+  matchedTerm: string | null = null,
+): NormalizedListing | null {
   const url = job.link;
   const title = job.title;
   if (!url || !title) return null;
@@ -106,6 +109,7 @@ export function normalizeJoobleJob(job: z.infer<typeof JoobleJob>): NormalizedLi
     // real stated figure rather than an estimate.
     salaryIsPredicted: false,
     postedDate: job.updated ? safeDate(job.updated) : null,
+    providerMatchedTerm: matchedTerm,
     providerHints: commitment ? { commitment } : {},
     raw: job,
   };
@@ -126,19 +130,19 @@ export const joobleAdapter: SourceAdapter = {
     return hasJoobleCreds(getEnv());
   },
 
-  async fetch({ filterSet, maxCalls, pagesPerQuery = 2 }): Promise<FetchResult> {
+  async fetch({ filterSet, maxCalls, pagesPerQuery = 1 }): Promise<FetchResult> {
     const env = getEnv();
     const { filter, keywords } = filterSet;
-    const groups = buildQueryGroups(keywords, { groupSize: 4, maxGroups: 5 });
+    const queries = buildKeywordQueries(keywords);
     const location = locationQuery(filter);
 
     const listings: NormalizedListing[] = [];
     let calls = 0;
 
-    outer: for (const group of groups) {
+    outer: for (const query of queries) {
       for (let page = 1; page <= pagesPerQuery; page++) {
         if (calls >= maxCalls) {
-          log.warn(`jooble: stopping early, call budget of ${maxCalls} reached`);
+          log.warn(`jooble: call budget of ${maxCalls} spent, remaining keywords skipped`);
           break outer;
         }
 
@@ -146,8 +150,11 @@ export const joobleAdapter: SourceAdapter = {
           method: 'POST',
           headers: { 'content-type': 'application/json', 'user-agent': 'intern-finder-bot/0.1' },
           body: JSON.stringify({
-            // Jooble treats a space-separated string as an OR of terms.
-            keywords: group.terms.join(' '),
+            // One phrase per request. Jooble's `keywords` is documented as a
+            // search string rather than a strict phrase match, so precision
+            // here is weaker than Adzuna's what_phrase - the local pre-filter
+            // is what actually enforces relevance.
+            keywords: query.term,
             location,
             radius: String(filter.radius_km),
             page: String(page),
@@ -172,12 +179,13 @@ export const joobleAdapter: SourceAdapter = {
         }
 
         const pageListings = parsed.data.jobs
-          .map(normalizeJoobleJob)
+          .map((j) => normalizeJoobleJob(j, query.term))
           .filter((l): l is NormalizedListing => l !== null);
         listings.push(...pageListings);
 
         log.debug(
-          `jooble: q="${group.terms.join('|')}" page=${page} -> ${pageListings.length} listings`,
+          `jooble: "${query.term}" page=${page} -> ${pageListings.length} listings ` +
+            `(${parsed.data.totalCount ?? '?'} total)`,
         );
 
         if (parsed.data.jobs.length < 50) break;

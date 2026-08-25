@@ -20,10 +20,10 @@ import joobleFixture from './fixtures/jooble.sample.json' with { type: 'json' };
 
 function load(): NormalizedListing[] {
   const adzuna = AdzunaResponse.parse(adzunaFixture)
-    .results.map(normalizeAdzunaJob)
+    .results.map((j) => normalizeAdzunaJob(j))
     .filter((l): l is NormalizedListing => l !== null);
   const jooble = JoobleResponse.parse(joobleFixture)
-    .jobs.map(normalizeJoobleJob)
+    .jobs.map((j) => normalizeJoobleJob(j))
     .filter((l): l is NormalizedListing => l !== null);
   return [...adzuna, ...jooble];
 }

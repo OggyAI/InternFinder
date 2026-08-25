@@ -6,7 +6,7 @@ import {
   type Commitment,
   type NormalizedListing,
 } from '@intern-finder/core';
-import { buildQueryGroups, locationQuery, sleep } from './query';
+import { buildKeywordQueries, locationQuery, sleep } from './query';
 import type { FetchResult, SourceAdapter } from './types';
 
 /**
@@ -68,7 +68,10 @@ function mapContractTime(v: string | undefined): Commitment | undefined {
   return undefined;
 }
 
-export function normalizeAdzunaJob(job: z.infer<typeof AdzunaJob>): NormalizedListing | null {
+export function normalizeAdzunaJob(
+  job: z.infer<typeof AdzunaJob>,
+  matchedTerm: string | null = null,
+): NormalizedListing | null {
   // A listing with no URL cannot be deduped or applied to; drop it.
   const url = job.redirect_url;
   const title = job.title;
@@ -91,6 +94,7 @@ export function normalizeAdzunaJob(job: z.infer<typeof AdzunaJob>): NormalizedLi
     salaryMax: job.salary_max ?? null,
     salaryIsPredicted: toBool(job.salary_is_predicted),
     postedDate: job.created ? safeDate(job.created) : null,
+    providerMatchedTerm: matchedTerm,
     providerHints: commitment ? { commitment } : {},
     raw: job,
   };
@@ -115,19 +119,28 @@ export const adzunaAdapter: SourceAdapter = {
     return hasAdzunaCreds(getEnv());
   },
 
-  async fetch({ filterSet, maxCalls, pagesPerQuery = 2 }): Promise<FetchResult> {
+  async fetch({ filterSet, maxCalls, pagesPerQuery = 1 }): Promise<FetchResult> {
     const env = getEnv();
     const { filter, keywords } = filterSet;
-    const groups = buildQueryGroups(keywords, { groupSize: 6, maxGroups: 4 });
+    // One exact-phrase request per keyword, highest weight first. See query.ts
+    // for why `what_or` grouping was abandoned after the first live poll.
+    const queries = buildKeywordQueries(keywords);
     const where = locationQuery(filter);
 
     const listings: NormalizedListing[] = [];
     let calls = 0;
+    let skipped = 0;
 
-    outer: for (const group of groups) {
+    outer: for (const query of queries) {
       for (let page = 1; page <= pagesPerQuery; page++) {
         if (calls >= maxCalls) {
-          log.warn(`adzuna: stopping early, call budget of ${maxCalls} reached`);
+          // Not an error. sort_by=date means page 1 of each phrase is the
+          // newest listings for that term, so a truncated poll loses the
+          // lowest-weight terms and picks them up next cycle.
+          skipped = queries.length - queries.indexOf(query);
+          log.warn(
+            `adzuna: call budget of ${maxCalls} spent, ${skipped} keyword(s) not queried this cycle`,
+          );
           break outer;
         }
 
@@ -137,8 +150,8 @@ export const adzunaAdapter: SourceAdapter = {
         url.searchParams.set('app_id', env.ADZUNA_APP_ID!);
         url.searchParams.set('app_key', env.ADZUNA_APP_KEY!);
         url.searchParams.set('results_per_page', '50');
-        // what_or = match ANY of these terms, which is what a keyword group is.
-        url.searchParams.set('what_or', group.terms.join(' '));
+        // what_phrase = this exact phrase. NOT what_or, which ORs words.
+        url.searchParams.set('what_phrase', query.term);
         url.searchParams.set('where', where);
         url.searchParams.set('distance', String(filter.radius_km));
         url.searchParams.set('max_days_old', String(filter.max_listing_age_days));
@@ -155,7 +168,7 @@ export const adzunaAdapter: SourceAdapter = {
           // 429 is the free-tier rate limit. Stop this source for the cycle
           // rather than hammering it; the next poll picks up where we left off.
           if (res.status === 429) {
-            log.warn(`adzuna: rate limited (429), ending cycle`, body.slice(0, 200));
+            log.warn('adzuna: rate limited (429), ending cycle', body.slice(0, 200));
             break outer;
           }
           throw new Error(`Adzuna ${res.status}: ${body.slice(0, 300)}`);
@@ -167,17 +180,18 @@ export const adzunaAdapter: SourceAdapter = {
           continue;
         }
 
-        const page_listings = parsed.data.results
-          .map(normalizeAdzunaJob)
+        const pageListings = parsed.data.results
+          .map((j) => normalizeAdzunaJob(j, query.term))
           .filter((l): l is NormalizedListing => l !== null);
-        listings.push(...page_listings);
+        listings.push(...pageListings);
 
         log.debug(
-          `adzuna: q="${group.terms.join('|')}" page=${page} -> ${page_listings.length} listings`,
+          `adzuna: "${query.term}" page=${page} -> ${pageListings.length} listings ` +
+            `(${parsed.data.count ?? '?'} total)`,
         );
 
-        // Short page means we've exhausted this query; don't spend a call
-        // fetching an empty next page.
+        // Short page means the phrase is exhausted; don't spend a call on an
+        // empty next page.
         if (parsed.data.results.length < 50) break;
         await sleep(1200);
       }

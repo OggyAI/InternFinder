@@ -31,7 +31,7 @@ async function loadAdzunaFixture(): Promise<NormalizedListing[]> {
   const raw = JSON.parse(await readFile(fsPath(FIXTURE_FILES.adzuna), 'utf8'));
   const parsed = AdzunaResponse.parse(raw);
   return parsed.results
-    .map(normalizeAdzunaJob)
+    .map((j) => normalizeAdzunaJob(j))
     .filter((l): l is NormalizedListing => l !== null);
 }
 
@@ -39,7 +39,7 @@ async function loadJoobleFixture(): Promise<NormalizedListing[]> {
   const raw = JSON.parse(await readFile(fsPath(FIXTURE_FILES.jooble), 'utf8'));
   const parsed = JoobleResponse.parse(raw);
   return parsed.jobs
-    .map(normalizeJoobleJob)
+    .map((j) => normalizeJoobleJob(j))
     .filter((l): l is NormalizedListing => l !== null);
 }
 

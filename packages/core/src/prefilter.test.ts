@@ -135,9 +135,76 @@ describe('prefilter — whole_word keyword matching', () => {
     expect(r.matchedKeywords).toContain('IT');
   });
 
+  it('does NOT let the keyword "IT" match the English pronoun "it"', () => {
+    // The bug that made the first live poll useless. `whole_word` correctly
+    // stopped IT matching *security* and *monitor*, but matching was still
+    // case-insensitive, so IT matched "it" — a word in essentially every job
+    // ad ever written. A Medical Receptionist and a Cocktail Bartender both
+    // passed the filter on the strength of it.
+    const r = run({
+      title: 'Medical Receptionist',
+      description: 'We think it is a great role and it suits many people.',
+      locationRaw: 'Werribee VIC 3030',
+    });
+    expect(r.matchedKeywords).not.toContain('IT');
+    expect(buckets(r)).toContain('no_keyword_match');
+  });
+
+  it('matches "IT" in an all-caps title', () => {
+    // Case-sensitive must not mean "misses IT SUPPORT OFFICER", which is how
+    // a good share of Australian job ads are written.
+    const r = run({ title: 'IT SUPPORT OFFICER', locationRaw: 'Werribee VIC 3030' });
+    expect(r.matchedKeywords).toContain('IT');
+  });
+
   it('matches multi-word terms across hyphens', () => {
     const r = run({ title: 'Cyber-Security Analyst', locationRaw: 'Werribee VIC 3030' });
     expect(r.matchedKeywords).toContain('Cyber Security');
+  });
+});
+
+describe('prefilter — provider keyword match', () => {
+  it('accepts a listing the provider matched, even when our text does not', () => {
+    // Adzuna full-text searches the whole ad but returns a 500-char teaser.
+    // A what_phrase hit proves the phrase is in the ad even when it is absent
+    // from the text we received. 401 listings in the first live poll were
+    // being discarded this way.
+    const r = run({
+      title: 'Analyst, Technology Risk',
+      description: 'Join a growing team. Excellent benefits and career growth.',
+      locationRaw: 'Werribee VIC 3030',
+      providerMatchedTerm: 'Cyber Security',
+    });
+    expect(r.status).toBe('passed');
+    expect(r.keywordMatchSource).toBe('provider');
+    expect(r.matchedKeywords).toEqual(['Cyber Security']);
+  });
+
+  it('prefers our own text match when there is one', () => {
+    const r = run({
+      title: 'IT Support Officer',
+      locationRaw: 'Werribee VIC 3030',
+      providerMatchedTerm: 'Cyber Security',
+    });
+    expect(r.keywordMatchSource).toBe('text');
+    expect(r.matchedKeywords).toContain('IT Support');
+  });
+
+  it('does NOT let a provider match bypass the exclude keywords', () => {
+    // The fallback gets a listing past the include gate and nothing more.
+    const r = run({
+      title: 'Security Guard',
+      description: 'Crowd control duties.',
+      locationRaw: 'Werribee VIC 3030',
+      providerMatchedTerm: 'Cyber Security',
+    });
+    expect(r.status).toBe('rejected');
+    expect(buckets(r)).toContain('excluded_keyword');
+  });
+
+  it('reports none when neither our text nor the provider matched', () => {
+    const r = run({ title: 'Barista', description: 'Weekend cafe work.' });
+    expect(r.keywordMatchSource).toBe('none');
   });
 });
 
