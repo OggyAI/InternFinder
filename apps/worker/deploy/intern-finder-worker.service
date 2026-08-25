@@ -76,12 +76,17 @@ LockPersonality=true
 # An earlier version of this file had ProtectHome=true from when the app was
 # assumed to live in /opt. Do not reinstate it without moving the app.
 
-# 1GB of RAM shared with libstaffer-bot. MemoryHigh throttles and reclaims
-# first; MemoryMax is the hard ceiling that triggers an OOM kill. Leaving a gap
-# between them means a memory spike during a large ingest gets slowed down
-# rather than killed outright.
-MemoryHigh=256M
-MemoryMax=320M
+# Set from measurement, not guesswork. A full Adzuna cycle on this VM — 51
+# keyword queries, 1636 listings fetched, 988 written — peaked at 121.5 MB
+# resident and took 96 seconds.
+#
+# MemoryHigh throttles and reclaims first; MemoryMax is the hard ceiling that
+# triggers an OOM kill. The gap means a spike gets slowed rather than killed.
+# ~1.6x peak to throttle and ~2.5x to kill leaves room for the listing volume
+# to grow while still catching a genuine runaway before it threatens
+# libstaffer-bot (which uses 29 MB) or the box (956 MB total, 2 GB swap).
+MemoryHigh=200M
+MemoryMax=300M
 
 [Install]
 WantedBy=multi-user.target
