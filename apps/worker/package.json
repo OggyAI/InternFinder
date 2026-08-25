@@ -1,0 +1,20 @@
+{
+  "name": "@intern-finder/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "once": "tsx src/index.ts --once",
+    "fixtures": "tsx src/index.ts --once --fixtures --force",
+    "dry": "tsx src/index.ts --once --fixtures --force --dry-run",
+    "demo": "tsx src/demo.ts"
+  },
+  "dependencies": {
+    "@intern-finder/core": "*",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2"
+  }
+}

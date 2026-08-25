@@ -1,0 +1,7 @@
+# Development happens on Windows, deployment is a Linux VM. Normalise line
+# endings in the repo to LF so the systemd unit, the SQL migrations and the
+# shell snippets in the README don't reach the server with CRLF.
+* text=auto eol=lf
+
+# Lockfile churn is noise in reviews.
+package-lock.json linguist-generated=true -diff

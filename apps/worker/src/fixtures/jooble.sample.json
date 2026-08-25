@@ -1,0 +1,66 @@
+{
+  "totalCount": 5,
+  "__note": "Hand-built sample modelled on Jooble's documented response shape, NOT captured traffic. Note the deliberately thin snippets and the absence of coordinates - that is what Jooble actually gives you, and it is why the suburb gazetteer exists.",
+  "jobs": [
+    {
+      "id": 88000001,
+      "title": "Cyber Security Intern (Semester Placement)",
+      "location": "Point Cook VIC 3030",
+      "snippet": "Semester long internship supporting our information security team. Two days per week on site. Suits a student completing a cyber security or IT degree...",
+      "salary": "",
+      "source": "ethicaljobs.com.au",
+      "type": "Part-time",
+      "link": "https://au.jooble.org/desc/8800000000000001?utm_source=api&pos=1",
+      "company": "Wyndham Youth Services",
+      "updated": "2026-08-21T00:00:00.0000000"
+    },
+    {
+      "id": 88000002,
+      "title": "Service Desk Analyst",
+      "location": "Laverton North VIC",
+      "snippet": "Level 1 and 2 service desk support in a fast paced logistics environment. On-site role, full time, ongoing.",
+      "salary": "$65,000 - $72,000",
+      "source": "seek.com.au",
+      "type": "Full-time",
+      "link": "https://au.jooble.org/desc/8800000000000002?pos=2",
+      "company": "Westgate Logistics",
+      "updated": "2026-08-22T00:00:00.0000000"
+    },
+    {
+      "id": 88000003,
+      "title": "Barista - Weekend Casual",
+      "location": "Werribee VIC 3030",
+      "snippet": "Experienced barista wanted for busy weekend trade. Casual position.",
+      "salary": "$30 an hour",
+      "source": "indeed.com",
+      "type": "Casual",
+      "link": "https://au.jooble.org/desc/8800000000000003",
+      "company": "Little Prospect Coffee",
+      "updated": "2026-08-23T00:00:00.0000000"
+    },
+    {
+      "id": 88000004,
+      "title": "IT Helpdesk Support Officer",
+      "location": "Ballarat VIC 3350",
+      "snippet": "Provide IT support across our Ballarat sites. Desktop support, Active Directory, ticketing.",
+      "salary": "$70,000",
+      "source": "seek.com.au",
+      "type": "Full-time",
+      "link": "https://au.jooble.org/desc/8800000000000004",
+      "company": "Central Highlands Services",
+      "updated": "2026-08-20T00:00:00.0000000"
+    },
+    {
+      "id": 88000005,
+      "title": "Volunteer IT Support Assistant",
+      "location": "St Albans VIC 3021",
+      "snippet": "Volunteer role assisting our community centre with IT support and data entry. Unpaid, minimum 3 month commitment, one day a week on site.",
+      "salary": "",
+      "source": "volunteer.com.au",
+      "type": "Volunteer",
+      "link": "https://au.jooble.org/desc/8800000000000005",
+      "company": "Brimbank Neighbourhood House",
+      "updated": "2026-08-22T00:00:00.0000000"
+    }
+  ]
+}

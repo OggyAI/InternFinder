@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.env
+.env.local
+.env.*.local
+*.log
+.DS_Store
+Thumbs.db
+tsconfig.tsbuildinfo
+
+# Supabase CLI local state (config.toml IS committed once you run `supabase init`)
+supabase/.branches/
+supabase/.temp/
+
+# Resume files are personal data - keep them out of git.
+resume/
+*.resume.txt

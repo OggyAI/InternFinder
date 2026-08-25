@@ -1,0 +1,25 @@
+{
+  "name": "intern-finder-bot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "worker": "npm run start --workspace @intern-finder/worker",
+    "worker:once": "npm run once --workspace @intern-finder/worker",
+    "worker:fixtures": "npm run fixtures --workspace @intern-finder/worker",
+    "demo": "npm run demo --workspace @intern-finder/worker"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.9"
+  }
+}
