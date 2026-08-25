@@ -36,6 +36,7 @@ import type {
 export interface CompiledKeyword {
   term: string;
   kind: FilterKeywordRow['kind'];
+  category: FilterKeywordRow['category'];
   weight: number;
   re: RegExp;
 }
@@ -55,7 +56,13 @@ export function compileKeywords(keywords: FilterKeywordRow[]): CompiledKeyword[]
       // and a Cocktail Bartender both "matched" the keyword IT.
       const pattern = k.whole_word ? `(?<![A-Za-z0-9])(?:${body})(?![A-Za-z0-9])` : body;
       const flags = k.case_sensitive ? '' : 'i';
-      return { term: k.term, kind: k.kind, weight: k.weight, re: new RegExp(pattern, flags) };
+      return {
+        term: k.term,
+        kind: k.kind,
+        category: k.category,
+        weight: k.weight,
+        re: new RegExp(pattern, flags),
+      };
     });
 }
 
@@ -114,27 +121,39 @@ export function prefilter(
     }
   }
 
-  const textMatches = compiled
-    .filter((k) => k.kind === 'include' && k.re.test(text))
-    .map((k) => k.term);
+  const includes = compiled.filter((k) => k.kind === 'include');
+  const textMatches = includes.filter((k) => k.re.test(text));
+
+  // ONLY a domain term admits a listing. Structural terms (Internship,
+  // Trainee, Work Experience) describe the shape of a role, not its field, and
+  // admitting on those alone ranked an AFL internship and nine cleaners above
+  // every real IT job in the first ingest.
+  const textDomainMatch = textMatches.some((k) => k.category === 'domain');
 
   // Fall back to the provider's own match. Adzuna searches the full ad and
   // returns a truncated teaser, so a phrase can be genuinely present and
-  // invisible to us. Rejecting those would discard listings the source has
-  // already confirmed. Excludes are NOT waived by this - a provider match
-  // gets a listing past the include gate, nothing more.
-  const matchedKeywords =
-    textMatches.length > 0
-      ? textMatches
-      : listing.providerMatchedTerm
-        ? [listing.providerMatchedTerm]
-        : [];
+  // invisible to us — but only honour it when the term that found the listing
+  // was itself a domain term.
+  const providerTerm = listing.providerMatchedTerm;
+  const providerDomainMatch =
+    !textDomainMatch &&
+    providerTerm !== null &&
+    includes.some((k) => k.category === 'domain' && k.term === providerTerm);
 
-  const keywordMatchSource: PrefilterResult['keywordMatchSource'] =
-    textMatches.length > 0 ? 'text' : matchedKeywords.length > 0 ? 'provider' : 'none';
+  // Everything that matched, domain or structural, for display and ranking.
+  const matchedKeywords = textMatches.map((k) => k.term);
+  if (providerDomainMatch && providerTerm && !matchedKeywords.includes(providerTerm)) {
+    matchedKeywords.push(providerTerm);
+  }
 
-  if (matchedKeywords.length === 0) {
-    reasons.push('no_keyword_match');
+  const keywordMatchSource: PrefilterResult['keywordMatchSource'] = textDomainMatch
+    ? 'text'
+    : providerDomainMatch
+      ? 'provider'
+      : 'none';
+
+  if (keywordMatchSource === 'none') {
+    reasons.push('no_domain_keyword_match');
   }
 
   // --- Age -----------------------------------------------------------------

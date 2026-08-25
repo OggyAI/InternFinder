@@ -17,6 +17,15 @@ export const SourceName = z.enum(['adzuna', 'jooble', 'careers_page']);
 export const PrefilterStatus = z.enum(['pending', 'passed', 'rejected']);
 export const MatchStatus = z.enum(['new', 'notified', 'applied', 'dismissed', 'saved']);
 export const KeywordKind = z.enum(['include', 'exclude', 'exclude_work_rights']);
+/**
+ * domain     = identifies the FIELD (Cyber Security, IT Support, Data Entry)
+ * structural = identifies the SHAPE (Internship, Trainee, Work Experience)
+ *
+ * Only a domain match admits a listing. A structural term matches an AFL
+ * analysis internship as readily as an IT one, so on its own it is not
+ * evidence of relevance.
+ */
+export const KeywordCategory = z.enum(['domain', 'structural']);
 export const PreferenceDimension = z.enum([
   'compensation',
   'work_mode',
@@ -32,6 +41,7 @@ export type SourceName = z.infer<typeof SourceName>;
 export type PrefilterStatus = z.infer<typeof PrefilterStatus>;
 export type MatchStatus = z.infer<typeof MatchStatus>;
 export type KeywordKind = z.infer<typeof KeywordKind>;
+export type KeywordCategory = z.infer<typeof KeywordCategory>;
 export type PreferenceDimension = z.infer<typeof PreferenceDimension>;
 
 // ---------- Criteria rows, as loaded from Supabase --------------------------
@@ -61,6 +71,7 @@ export const FilterKeywordRow = z.object({
   /** Match with exact capitalisation. Essential for IT, which otherwise
    *  matches the pronoun "it" in every job ad in existence. */
   case_sensitive: z.boolean().default(false),
+  category: KeywordCategory.default('domain'),
   is_active: z.boolean(),
 });
 export type FilterKeywordRow = z.infer<typeof FilterKeywordRow>;
@@ -162,7 +173,7 @@ export interface PrefilterResult {
   reasons: string[];
   /** Include-keyword terms that matched. Empty means nothing matched. */
   matchedKeywords: string[];
-  /** How the keyword requirement was satisfied — useful when auditing recall. */
+  /** How the DOMAIN keyword requirement was satisfied. */
   keywordMatchSource: 'text' | 'provider' | 'none';
   distanceKm: number | null;
   suburb: string | null;

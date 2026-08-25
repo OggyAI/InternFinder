@@ -39,6 +39,13 @@ export interface IngestStats {
   rejected: number;
   written: number;
   rejectionReasons: Record<string, number>;
+  /**
+   * How passing listings cleared the include-keyword gate. A high 'provider'
+   * share means the gate is mostly rubber-stamping the query that fetched the
+   * listing, i.e. it is no longer reducing volume - which matters because the
+   * pre-filter's pass rate is a direct Phase 2 cost driver.
+   */
+  keywordMatchSource: Record<string, number>;
 }
 
 export interface IngestOptions {
@@ -110,6 +117,7 @@ export async function ingest(
         commitment: result.signals.commitment,
         role_type: result.signals.roleType,
         duration_weeks: result.signals.durationWeeks,
+        provider_matched_term: listing.providerMatchedTerm,
         raw_json: listing.raw,
         prefilter_status: result.status,
         prefilter_reasons: result.reasons,
@@ -138,6 +146,13 @@ export async function ingest(
     }
   }
 
+  const keywordMatchSource: Record<string, number> = {};
+  for (const p of prepared) {
+    if (p.result.status !== 'passed') continue;
+    const k = p.result.keywordMatchSource;
+    keywordMatchSource[k] = (keywordMatchSource[k] ?? 0) + 1;
+  }
+
   const passed = prepared.filter((p) => p.result.status === 'passed').length;
   const stats: IngestStats = {
     fetched: listings.length,
@@ -147,6 +162,7 @@ export async function ingest(
     rejected: prepared.length - passed,
     written: 0,
     rejectionReasons,
+    keywordMatchSource,
   };
 
   if (options.dryRun) {

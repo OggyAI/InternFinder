@@ -9,7 +9,9 @@
     "fixtures": "tsx src/index.ts --once --fixtures --force",
     "dry": "tsx src/index.ts --once --fixtures --force --dry-run",
     "demo": "tsx src/demo.ts",
-    "doctor": "tsx src/doctor.ts"
+    "doctor": "tsx src/doctor.ts",
+    "report": "tsx src/report.ts",
+    "reprocess": "tsx src/reprocess.ts"
   },
   "dependencies": {
     "@intern-finder/core": "*",

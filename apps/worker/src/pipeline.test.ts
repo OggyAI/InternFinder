@@ -123,7 +123,7 @@ describe('pre-filter outcomes across both sources', () => {
     ['IT Work Experience Placement', 'rejected', 'too_short'],
     ['Cyber Security Intern (Semester', 'passed', null],
     ['Service Desk Analyst', 'passed', null],
-    ['Barista', 'rejected', 'no_keyword_match'],
+    ['Barista', 'rejected', 'no_domain_keyword_match'],
     ['IT Helpdesk Support Officer', 'rejected', 'out_of_radius'],
     ['Volunteer IT Support Assistant', 'passed', null],
   ];

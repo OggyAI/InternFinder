@@ -123,6 +123,30 @@ async function main(): Promise<void> {
       if (!kwOk || !prefOk) problems++;
       console.log(`  ${tick(kwOk)} keywords             ${kw ?? 0}`);
       console.log(`  ${tick(prefOk)} preferences          ${pref ?? 0}`);
+
+      // Migration 20260825120000. Without this column every acronym matches
+      // case-insensitively, which means the keyword IT matches the pronoun
+      // "it" and the pre-filter passes essentially everything.
+      const { data: cased, error: casedError } = await db
+        .from('filter_keywords')
+        .select('term')
+        .eq('case_sensitive', true);
+
+      if (casedError) {
+        problems++;
+        console.log(
+          `  FAIL case_sensitive      column missing — apply migration ` +
+            `20260825120000_keyword_case_sensitivity.sql`,
+        );
+      } else {
+        const terms = (cased ?? []).map((r) => r.term as string);
+        const hasIT = terms.includes('IT');
+        if (!hasIT) problems++;
+        console.log(
+          `  ${tick(hasIT)} case-sensitive kw    ${terms.length} (${terms.join(', ') || 'none'})` +
+            (hasIT ? '' : '\n       ! "IT" is not case-sensitive; it will match the pronoun "it"'),
+        );
+      }
     }
   }
 

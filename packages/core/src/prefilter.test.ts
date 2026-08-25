@@ -47,7 +47,7 @@ describe('prefilter — rejecting', () => {
 
   it('rejects a listing matching no include keyword', () => {
     const r = run({ title: 'Barista', description: 'Weekend cafe work.' });
-    expect(buckets(r)).toContain('no_keyword_match');
+    expect(buckets(r)).toContain('no_domain_keyword_match');
   });
 
   it('rejects physical security roles that keyword-match on "security"', () => {
@@ -127,7 +127,7 @@ describe('prefilter — whole_word keyword matching', () => {
       description: 'Monitoring and editing candidate records.',
     });
     expect(r.matchedKeywords).not.toContain('IT');
-    expect(buckets(r)).toContain('no_keyword_match');
+    expect(buckets(r)).toContain('no_domain_keyword_match');
   });
 
   it('still matches "IT" as a standalone word', () => {
@@ -147,7 +147,7 @@ describe('prefilter — whole_word keyword matching', () => {
       locationRaw: 'Werribee VIC 3030',
     });
     expect(r.matchedKeywords).not.toContain('IT');
-    expect(buckets(r)).toContain('no_keyword_match');
+    expect(buckets(r)).toContain('no_domain_keyword_match');
   });
 
   it('matches "IT" in an all-caps title', () => {
@@ -205,6 +205,54 @@ describe('prefilter — provider keyword match', () => {
   it('reports none when neither our text nor the provider matched', () => {
     const r = run({ title: 'Barista', description: 'Weekend cafe work.' });
     expect(r.keywordMatchSource).toBe('none');
+  });
+});
+
+describe('prefilter — domain vs structural keywords', () => {
+  it('rejects a role whose only match is structural', () => {
+    // The first real ingest ranked an AFL Football Analysis Internship and
+    // nine Cleaners above every actual IT job, because "Internship" and
+    // "Work Experience" describe a role's SHAPE, not its FIELD.
+    const r = run({
+      title: 'AFL Football Analysis Internship',
+      description: 'A 12 week internship with our football analytics department.',
+      locationRaw: 'Melbourne VIC 3000',
+    });
+    expect(r.status).toBe('rejected');
+    expect(buckets(r)).toContain('no_domain_keyword_match');
+  });
+
+  it('accepts a structural role that also matches a domain term', () => {
+    const r = run({
+      title: 'IT Support Internship',
+      description: 'A 12 week internship with our service desk team.',
+      locationRaw: 'Werribee VIC 3030',
+    });
+    expect(r.status).toBe('passed');
+    expect(r.matchedKeywords).toEqual(expect.arrayContaining(['IT Support', 'Internship']));
+  });
+
+  it('does not honour a provider match on a structural term', () => {
+    // A listing found by querying "Internship" is not thereby relevant.
+    const r = run({
+      title: 'Graduate Nursing Programme',
+      description: 'Join our team caring for the community.',
+      locationRaw: 'Werribee VIC 3030',
+      providerMatchedTerm: 'Internship',
+    });
+    expect(r.status).toBe('rejected');
+    expect(r.keywordMatchSource).toBe('none');
+  });
+
+  it('does honour a provider match on a domain term', () => {
+    const r = run({
+      title: 'Analyst, Technology Risk',
+      description: 'Join a growing team.',
+      locationRaw: 'Werribee VIC 3030',
+      providerMatchedTerm: 'Cyber Security',
+    });
+    expect(r.status).toBe('passed');
+    expect(r.keywordMatchSource).toBe('provider');
   });
 });
 

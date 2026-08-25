@@ -137,14 +137,18 @@ async function runCycle(cli: Cli): Promise<void> {
       log.error(`${source.name}: poll failed — ${message}`);
       // Still record the attempt: consecutive_failures is how a persistently
       // broken source becomes visible instead of just going quiet.
-      if (!cli.dryRun) await recordPoll(source.name, { calls, ok: false, error: message });
+      await recordPoll(source.name, { calls, ok: false, error: message });
       continue;
     }
 
     const stats = await ingest(listings, filterSet, { dryRun: cli.dryRun, now });
     logStats(source.name, stats);
 
-    if (!cli.dryRun) await recordPoll(source.name, { calls, ok: true });
+    // Recorded even on a dry run. --dry-run suppresses WRITES, but the HTTP
+    // requests were really issued and really counted against the provider's
+    // daily allowance. Skipping this made repeated dry runs invisible to the
+    // quota guard while quietly spending the real budget.
+    await recordPoll(source.name, { calls, ok: true });
   }
 }
 
@@ -154,6 +158,10 @@ function logStats(name: string, s: IngestStats): void {
       `${s.passed} passed, ${s.rejected} rejected, ${s.written} written` +
       (s.crossSourceCandidates ? `, ${s.crossSourceCandidates} probable cross-source dupes` : ''),
   );
+  const kms = Object.entries(s.keywordMatchSource).sort((a, b) => b[1] - a[1]);
+  if (kms.length) {
+    log.info(`${name}: keyword gate — ${kms.map(([k, v]) => `${k}=${v}`).join(', ')}`);
+  }
   const reasons = Object.entries(s.rejectionReasons).sort((a, b) => b[1] - a[1]);
   if (reasons.length) {
     log.info(`${name}: rejections — ${reasons.map(([k, v]) => `${k}=${v}`).join(', ')}`);

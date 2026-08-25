@@ -42,6 +42,8 @@ function kw(
 ): FilterKeywordRow {
   // Mirrors the migration rule: an all-caps initialism matches case-sensitively.
   const caseSensitive = /^[A-Z0-9]{2,6}$/.test(term);
+  // Mirrors the migration: these describe a role's shape, not its field.
+  const structural = /^(internship|intern|trainee|traineeship|cadet|cadetship|work experience)$/i;
   return {
     id: nextId(),
     term,
@@ -49,6 +51,7 @@ function kw(
     weight,
     whole_word: wholeWord,
     case_sensitive: caseSensitive,
+    category: structural.test(term) ? 'structural' : 'domain',
     is_active: true,
   };
 }
