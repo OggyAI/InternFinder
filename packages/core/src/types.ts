@@ -26,6 +26,14 @@ export const KeywordKind = z.enum(['include', 'exclude', 'exclude_work_rights'])
  * evidence of relevance.
  */
 export const KeywordCategory = z.enum(['domain', 'structural']);
+/**
+ * Which text a keyword is tested against.
+ *
+ * 'title' exists for wrong-domain excludes. Matching "Nurse" against the full
+ * text would reject a genuine IT Support role at a hospital; matching it
+ * against the title rejects exactly the nursing jobs.
+ */
+export const KeywordMatchScope = z.enum(['text', 'title']);
 export const PreferenceDimension = z.enum([
   'compensation',
   'work_mode',
@@ -42,6 +50,7 @@ export type PrefilterStatus = z.infer<typeof PrefilterStatus>;
 export type MatchStatus = z.infer<typeof MatchStatus>;
 export type KeywordKind = z.infer<typeof KeywordKind>;
 export type KeywordCategory = z.infer<typeof KeywordCategory>;
+export type KeywordMatchScope = z.infer<typeof KeywordMatchScope>;
 export type PreferenceDimension = z.infer<typeof PreferenceDimension>;
 
 // ---------- Criteria rows, as loaded from Supabase --------------------------
@@ -72,6 +81,7 @@ export const FilterKeywordRow = z.object({
    *  matches the pronoun "it" in every job ad in existence. */
   case_sensitive: z.boolean().default(false),
   category: KeywordCategory.default('domain'),
+  match_scope: KeywordMatchScope.default('text'),
   is_active: z.boolean(),
 });
 export type FilterKeywordRow = z.infer<typeof FilterKeywordRow>;

@@ -208,6 +208,32 @@ describe('prefilter — provider keyword match', () => {
   });
 });
 
+describe('prefilter — title-scoped excludes', () => {
+  it('rejects a wrong-domain role by its title', () => {
+    const r = run({
+      title: 'Cleaner',
+      description: 'Cleaning duties across the site. Report faults to the helpdesk.',
+      locationRaw: 'Werribee VIC 3030',
+      providerMatchedTerm: 'Helpdesk',
+    });
+    expect(r.status).toBe('rejected');
+    expect(buckets(r)).toContain('excluded_keyword');
+  });
+
+  it('does NOT reject a real IT role that merely mentions the excluded word', () => {
+    // The reason these excludes are title-scoped. A hospital IT job mentions
+    // nurses; a school IT job mentions teachers. Matching on full text would
+    // throw away exactly the roles we want.
+    const r = run({
+      title: 'IT Support Officer',
+      description: 'Supporting nurses and clinical staff across the hospital network.',
+      locationRaw: 'Werribee VIC 3030',
+    });
+    expect(r.status).toBe('passed');
+    expect(buckets(r)).not.toContain('excluded_keyword');
+  });
+});
+
 describe('prefilter — domain vs structural keywords', () => {
   it('rejects a role whose only match is structural', () => {
     // The first real ingest ranked an AFL Football Analysis Internship and

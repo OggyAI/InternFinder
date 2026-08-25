@@ -39,6 +39,7 @@ function kw(
   kind: FilterKeywordRow['kind'],
   wholeWord = false,
   weight = 1,
+  scope: FilterKeywordRow['match_scope'] = 'text',
 ): FilterKeywordRow {
   // Mirrors the migration rule: an all-caps initialism matches case-sensitively.
   const caseSensitive = /^[A-Z0-9]{2,6}$/.test(term);
@@ -52,6 +53,7 @@ function kw(
     whole_word: wholeWord,
     case_sensitive: caseSensitive,
     category: structural.test(term) ? 'structural' : 'domain',
+    match_scope: scope,
     is_active: true,
   };
 }
@@ -83,6 +85,9 @@ export function makeTestFilterSet(overrides: Partial<FilterRow> = {}): FilterSet
       kw('Work Experience', 'include', false, 1.1),
 
       kw('Security Guard', 'exclude'),
+      // Title-scoped, mirroring the wrong-domain excludes in the migration.
+      kw('Cleaner', 'exclude', false, 1, 'title'),
+      kw('Nurse', 'exclude', false, 1, 'title'),
       kw('Security Officer', 'exclude'),
       kw('Crowd Control', 'exclude'),
       kw('Loss Prevention', 'exclude'),

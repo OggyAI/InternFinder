@@ -37,6 +37,7 @@ export interface CompiledKeyword {
   term: string;
   kind: FilterKeywordRow['kind'];
   category: FilterKeywordRow['category'];
+  scope: FilterKeywordRow['match_scope'];
   weight: number;
   re: RegExp;
 }
@@ -60,6 +61,7 @@ export function compileKeywords(keywords: FilterKeywordRow[]): CompiledKeyword[]
         term: k.term,
         kind: k.kind,
         category: k.category,
+        scope: k.match_scope,
         weight: k.weight,
         re: new RegExp(pattern, flags),
       };
@@ -89,6 +91,11 @@ export function prefilter(
   const text = listingText(listing);
   const reasons: string[] = [];
 
+  // A keyword scoped to 'title' is tested against the title alone. This is how
+  // "Cleaner" can be excluded without also rejecting a real IT Support role
+  // whose description happens to mention the cleaning contractor.
+  const against = (k: CompiledKeyword): string => (k.scope === 'title' ? listing.title : text);
+
   // --- Location ------------------------------------------------------------
   const loc = resolveLocation(listing.locationRaw, listing.latitude, listing.longitude);
   const distanceKm = distanceFromCentre(
@@ -107,14 +114,14 @@ export function prefilter(
   }
 
   // --- Keywords ------------------------------------------------------------
-  const hitExcludes = compiled.filter((k) => k.kind === 'exclude' && k.re.test(text));
+  const hitExcludes = compiled.filter((k) => k.kind === 'exclude' && k.re.test(against(k)));
   for (const k of hitExcludes) {
     reasons.push(`excluded_keyword: "${k.term}"`);
   }
 
   if (filter.exclude_sponsorship_required) {
     const hitWorkRights = compiled.filter(
-      (k) => k.kind === 'exclude_work_rights' && k.re.test(text),
+      (k) => k.kind === 'exclude_work_rights' && k.re.test(against(k)),
     );
     for (const k of hitWorkRights) {
       reasons.push(`work_rights: "${k.term}"`);
@@ -122,7 +129,7 @@ export function prefilter(
   }
 
   const includes = compiled.filter((k) => k.kind === 'include');
-  const textMatches = includes.filter((k) => k.re.test(text));
+  const textMatches = includes.filter((k) => k.re.test(against(k)));
 
   // ONLY a domain term admits a listing. Structural terms (Internship,
   // Trainee, Work Experience) describe the shape of a role, not its field, and

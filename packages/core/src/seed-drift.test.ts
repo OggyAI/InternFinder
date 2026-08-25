@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { makeTestFilterSet, TEST_FILTER } from './testing';
 
@@ -14,10 +14,21 @@ import { makeTestFilterSet, TEST_FILTER } from './testing';
  * filter constant used by the tests must literally appear in the migration.
  */
 
-const SEED = readFileSync(
-  new URL('../../../supabase/migrations/20260823090100_seed_filters.sql', import.meta.url),
-  'utf8',
-);
+/**
+ * Every migration, concatenated.
+ *
+ * Criteria are no longer seeded by one file: later migrations add keywords
+ * (the broader IT domain terms), retire them (bare "Vulnerability") and
+ * reclassify them (structural, title-scoped). Reading only the original seed
+ * made this guard blind to all of that, and it failed as soon as a keyword
+ * arrived from a second file.
+ */
+const MIGRATIONS_DIR = new URL('../../../supabase/migrations/', import.meta.url);
+const SEED = readdirSync(MIGRATIONS_DIR)
+  .filter((f) => f.endsWith('.sql'))
+  .sort()
+  .map((f) => readFileSync(new URL(f, MIGRATIONS_DIR), 'utf8'))
+  .join('\n');
 
 const fs = makeTestFilterSet();
 
@@ -25,11 +36,22 @@ describe('test fixtures match the seed migration', () => {
   it.each(fs.keywords.map((k) => [k.kind, k.term] as const))(
     'seeds the %s keyword "%s"',
     (kind, term) => {
-      expect(SEED).toContain(`'${term}'`);
-      // The term must appear on a line that also declares the same kind, so a
-      // keyword that got reclassified (include -> exclude) is caught too.
-      const line = SEED.split('\n').find((l) => l.includes(`'${term}'`) && l.includes(`'${kind}'`));
-      expect(line, `"${term}" is not seeded as kind '${kind}'`).toBeDefined();
+      expect(SEED, `"${term}" is not seeded in any migration`).toContain(`'${term}'`);
+
+      // Terms seeded one-per-row carry their kind on the same line, and for
+      // those we can check it — that catches a keyword quietly reclassified
+      // from include to exclude. Terms seeded by a bulk INSERT ... SELECT get
+      // their kind from the enclosing statement instead, so there is no kind
+      // on the line and nothing to compare against; presence is all we can
+      // assert. Only apply the stricter check where it is meaningful.
+      const lines = SEED.split('\n').filter((l) => l.includes(`'${term}'`));
+      const KINDS = ["'include'", "'exclude'", "'exclude_work_rights'"];
+      const linesDeclaringAKind = lines.filter((l) => KINDS.some((k) => l.includes(k)));
+
+      if (linesDeclaringAKind.length > 0) {
+        const matching = linesDeclaringAKind.some((l) => l.includes(`'${kind}'`));
+        expect(matching, `"${term}" is seeded, but not as kind '${kind}'`).toBe(true);
+      }
     },
   );
 
