@@ -1,3 +1,4 @@
+import { hasFlag } from './cli';
 import {
   getServiceClient,
   loadActiveFilter,
@@ -26,7 +27,7 @@ import {
  *   npm run reprocess -- --dry-run report the delta, change nothing
  */
 
-const dryRun = process.argv.includes('--dry-run');
+const dryRun = hasFlag('dry-run');
 
 interface StoredRow {
   id: string;
@@ -134,9 +135,23 @@ async function main(): Promise<void> {
     });
 
     if (!dryRun) {
-      // upsert on the primary key updates in place; every row already exists.
-      const { error: writeError } = await db.from('job_listings').upsert(updates);
-      if (writeError) throw new Error(`write failed: ${writeError.message}`);
+      // UPDATE, not upsert. PostgREST's upsert issues INSERT ... ON CONFLICT,
+      // and Postgres validates the INSERT's NOT NULL columns before conflict
+      // resolution runs — so a partial payload fails with "null value in
+      // column source" even though every row already exists. Sending the
+      // missing columns instead would mean round-tripping raw_json through
+      // this process, and raw_json is never to be rewritten.
+      const CONCURRENCY = 8;
+      for (let i = 0; i < updates.length; i += CONCURRENCY) {
+        const slice = updates.slice(i, i + CONCURRENCY);
+        const settled = await Promise.all(
+          slice.map(({ id, ...patch }) =>
+            db.from('job_listings').update(patch).eq('id', id),
+          ),
+        );
+        const failure = settled.find((r) => r.error);
+        if (failure?.error) throw new Error(`write failed: ${failure.error.message}`);
+      }
     }
 
     seen += rows.length;

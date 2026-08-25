@@ -17,6 +17,7 @@ import { joobleAdapter } from './sources/jooble';
 import { adzunaFixtureAdapter, joobleFixtureAdapter } from './sources/fixtures';
 import type { SourceAdapter } from './sources/types';
 import { ingest, type IngestStats } from './ingest';
+import { flagValue, hasFlag } from './cli';
 
 /**
  * Worker entrypoint.
@@ -42,21 +43,19 @@ interface Cli {
 }
 
 function parseArgs(argv: string[]): Cli {
-  const has = (flag: string) => argv.includes(flag);
-  const value = (flag: string): string | null => {
-    const hit = argv.find((a) => a.startsWith(`${flag}=`));
-    return hit ? hit.slice(flag.length + 1) : null;
-  };
+  // Via hasFlag, because `npm run worker -- --dry-run` never reaches argv —
+  // npm swallows --dry-run as its own option. See cli.ts.
+  const has = (flag: string) => hasFlag(flag, argv);
 
-  const raw = value('--source');
+  const raw = flagValue('source', argv);
   return {
-    once: has('--once'),
+    once: has('once'),
     // --dry-run implies fixtures are safe to use but does NOT force them; you
     // can dry-run against live APIs to see what would be stored.
-    dryRun: has('--dry-run'),
-    fixtures: has('--fixtures'),
+    dryRun: has('dry-run'),
+    fixtures: has('fixtures'),
     // Ignore poll_interval and quota gating. For manual runs and testing only.
-    force: has('--force'),
+    force: has('force'),
     sources: raw ? (raw.split(',').map((s) => s.trim()) as SourceName[]) : null,
   };
 }
