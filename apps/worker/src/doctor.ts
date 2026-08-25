@@ -59,11 +59,19 @@ async function main(): Promise<void> {
   const counts = new Map<string, number>();
 
   for (const table of EXPECTED_TABLES) {
-    const { error, count } = await db.from(table).select('*', { count: 'exact', head: true });
-    if (error) {
+    // Deliberately a real GET, not `head: true`. PostgREST answers a HEAD for
+    // a missing table with a bodiless 404, so supabase-js leaves `error` null
+    // and `count` null — which reads as "exists, 0 rows" and reports a schema
+    // that was never applied as healthy. Ask for a row and check the status.
+    const { error, count, status } = await db
+      .from(table)
+      .select('*', { count: 'exact' })
+      .limit(1);
+    if (error || status >= 400) {
       missing.push(table);
       problems++;
-      console.log(`  ${tick(false)} ${table.padEnd(20)} ${error.message.slice(0, 60)}`);
+      const why = error ? error.message.slice(0, 55) : `HTTP ${status}`;
+      console.log(`  ${tick(false)} ${table.padEnd(20)} ${why}`);
     } else {
       counts.set(table, count ?? 0);
       console.log(`  ${tick(true)} ${table.padEnd(20)} ${count ?? 0} rows`);

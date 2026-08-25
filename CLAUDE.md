@@ -97,3 +97,13 @@ before trusting Phase 2 output.
   Sorting by length picks the council over the suburb.
 - **Duration ranges take the lower bound.** An "8–12 week" internship must
   clear a 6-week floor on its 8, not its 12.
+- **Never use `head: true` to test whether a table exists.** PostgREST answers
+  a HEAD request for a missing table with a bodiless 404, so supabase-js
+  returns `error: null` and `count: null` — identical to an empty table. This
+  made both `checkConnection()` and `doctor` report a completely unapplied
+  schema as nine healthy empty tables. Use a real GET and check `status`.
+  `head: true` is only safe once the table is known to exist.
+- **A `PGRST205` from the anon key does not prove RLS works.** If the table
+  does not exist, every role gets `PGRST205`. The anon-access check in `doctor`
+  is meaningful only when the schema is actually present, which is why it is
+  gated behind the table check.

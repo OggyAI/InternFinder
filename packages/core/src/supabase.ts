@@ -22,18 +22,28 @@ export function getServiceClient(): SupabaseClient {
   return cached;
 }
 
-/** Cheap round-trip to prove the URL, the key, and the schema are all real. */
+/**
+ * Cheap round-trip to prove the URL, the key, and the schema are all real.
+ *
+ * Uses a real GET rather than `head: true`. PostgREST answers a HEAD request
+ * for a table that does not exist with a bodiless 404, so supabase-js reports
+ * no error and a null count — indistinguishable from an empty table. That made
+ * this function claim "connected, 0 filter row(s)" against a database with no
+ * schema at all. Ask for a row and check the status code.
+ */
 export async function checkConnection(): Promise<{ ok: boolean; detail: string }> {
   const db = getServiceClient();
-  const { error, count } = await db
+  const { error, count, status } = await db
     .from('filters')
-    .select('id', { count: 'exact', head: true });
+    .select('id', { count: 'exact' })
+    .limit(1);
 
-  if (error) {
-    const hint = /relation .* does not exist|schema cache/i.test(error.message)
-      ? ' — schema not applied yet? run `supabase db push`'
+  if (error || status >= 400) {
+    const message = error?.message ?? `HTTP ${status}`;
+    const hint = /relation .* does not exist|schema cache/i.test(message)
+      ? ' — schema not applied yet? apply supabase/migrations/*.sql, then `npm run doctor`'
       : '';
-    return { ok: false, detail: `${error.message}${hint}` };
+    return { ok: false, detail: `${message}${hint}` };
   }
   return { ok: true, detail: `connected, ${count ?? 0} filter row(s)` };
 }
