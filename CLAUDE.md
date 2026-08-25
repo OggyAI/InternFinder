@@ -110,6 +110,15 @@ before trusting Phase 2 output.
   Sorting by length picks the council over the suburb.
 - **Duration ranges take the lower bound.** An "8–12 week" internship must
   clear a 6-week floor on its 8, not its 12.
+- **Jooble API keys are region-bound.** The first key issued returned
+  Melbourne, *Florida* for `location=Melbourne`, and `au.jooble.org/api/{key}`
+  answered 403. An AU-region key is required. The source is disabled in
+  `sources` until then.
+- **An unresolved location must still look Australian.**
+  `keep_unknown_location` exists for suburbs missing from the gazetteer, not
+  for other countries — without `hasAustralianSignal()` the US Jooble results
+  would all have passed, because a Florida location resolves to no suburb and
+  therefore to `distance_km = null`.
 - **Never use `head: true` to test whether a table exists.** PostgREST answers
   a HEAD request for a missing table with a bodiless 404, so supabase-js
   returns `error: null` and `count: null` — identical to an empty table. This

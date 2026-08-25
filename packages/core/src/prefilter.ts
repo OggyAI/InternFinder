@@ -1,4 +1,4 @@
-import { distanceFromCentre, resolveLocation } from './geo';
+import { distanceFromCentre, hasAustralianSignal, resolveLocation } from './geo';
 import { computePreferenceMultiplier, indexPreferences } from './preferences';
 import { detectSignals, listingText } from './signals';
 import type {
@@ -106,6 +106,11 @@ export function prefilter(
   if (distanceKm === null) {
     if (!filter.keep_unknown_location) {
       reasons.push(`location_unresolved: could not place "${listing.locationRaw ?? 'null'}"`);
+    } else if (!hasAustralianSignal(listing.locationRaw)) {
+      // keep_unknown_location is for suburbs missing from the gazetteer, not
+      // for other countries. A US-region Jooble key returning "Melbourne, FL"
+      // would otherwise have passed every result it gave us.
+      reasons.push(`non_australian_location: "${listing.locationRaw ?? 'null'}"`);
     }
   } else if (distanceKm > filter.radius_km) {
     reasons.push(

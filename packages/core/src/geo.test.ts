@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { distanceFromCentre, haversineKm, resolveLocation } from './geo';
+import { distanceFromCentre, hasAustralianSignal, haversineKm, resolveLocation } from './geo';
 
 const HOPPERS = { lat: -37.8829, lng: 144.7003 };
 
@@ -112,5 +112,38 @@ describe('distanceFromCentre', () => {
   it('puts Sydney far outside', () => {
     const d = distanceFromCentre(HOPPERS, resolveLocation('Sydney, New South Wales'));
     expect(d!).toBeGreaterThan(700);
+  });
+});
+
+describe('hasAustralianSignal', () => {
+  // This exists because a Jooble API key turned out to be bound to the US
+  // region: searching "Melbourne" returned Melbourne, FLORIDA. Those resolve
+  // to no suburb, so keep_unknown_location would have passed every one.
+  it('rejects US locations that share a name with Australian ones', () => {
+    expect(hasAustralianSignal('Melbourne, FL')).toBe(false);
+    expect(hasAustralianSignal('Palm Bay, FL')).toBe(false);
+    expect(hasAustralianSignal('Arizona')).toBe(false);
+    expect(hasAustralianSignal('Remote')).toBe(false);
+  });
+
+  it('accepts an Australian state abbreviation or name', () => {
+    expect(hasAustralianSignal('Werribee VIC')).toBe(true);
+    expect(hasAustralianSignal('Somewhere, Victoria')).toBe(true);
+    expect(hasAustralianSignal('Nowhereville, New South Wales')).toBe(true);
+  });
+
+  it('accepts an explicit country', () => {
+    expect(hasAustralianSignal('Melbourne, Australia')).toBe(true);
+    expect(hasAustralianSignal('Australian Capital Territory')).toBe(true);
+  });
+
+  it('accepts a bare 4-digit postcode but not a 5-digit US ZIP', () => {
+    expect(hasAustralianSignal('Werribee 3030')).toBe(true);
+    expect(hasAustralianSignal('Melbourne 32901')).toBe(false);
+  });
+
+  it('rejects a null or empty location', () => {
+    expect(hasAustralianSignal(null)).toBe(false);
+    expect(hasAustralianSignal('')).toBe(false);
   });
 });

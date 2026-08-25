@@ -158,6 +158,34 @@ function extractState(s: string | null | undefined): string | null {
 }
 
 /**
+ * Does this location string look Australian at all?
+ *
+ * Exists because a Jooble API key turned out to be bound to the US region:
+ * searching "Melbourne" returned Melbourne, FLORIDA. Those listings resolve to
+ * no suburb, so distance_km is null, and `keep_unknown_location` — which is on
+ * by default, correctly, so we don't silently drop suburbs missing from the
+ * gazetteer — would have passed every single one.
+ *
+ * An unresolved location is only tolerable when it is plausibly local. This is
+ * the difference between "a Melbourne suburb we haven't catalogued" and
+ * "another continent".
+ *
+ * Deliberately generous: any state name or abbreviation, the word Australia,
+ * or a bare 4-digit postcode (US ZIPs are 5). A local listing that says none
+ * of those is rare; a foreign one that says one of them is rarer still.
+ */
+export function hasAustralianSignal(locationRaw: string | null | undefined): boolean {
+  if (!locationRaw) return false;
+  if (extractState(locationRaw) !== null) return true;
+  // Prefix boundary only, so "Australian Capital Territory" counts too.
+  // Leading boundary only, so "Australian Capital Territory" counts too.
+  if (/\baustralia/i.test(locationRaw)) return true;
+  // A 4-digit token, not part of a longer number. Australian postcodes are
+  // 0800-7999; US ZIP codes are five digits and will not match.
+  return /(?<!\d)\d{4}(?!\d)/.test(locationRaw);
+}
+
+/**
  * Distance from a filter's centre to a listing, or null when the listing's
  * location could not be resolved.
  */
