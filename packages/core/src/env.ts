@@ -24,6 +24,9 @@ const EnvSchema = z.object({
   // --- Phase 1: required ---
   SUPABASE_URL: z.string().url('SUPABASE_URL must be a full https:// URL'),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(20, 'SUPABASE_SERVICE_ROLE_KEY looks empty'),
+  // Not used by the worker. Present so `npm run doctor` can prove that an
+  // anon-key client reaches nothing, and for the Phase 3 dashboard.
+  SUPABASE_ANON_KEY: z.string().optional(),
 
   // --- Phase 1: required only for live pulls (fixture mode runs without) ---
   ADZUNA_APP_ID: z.string().optional(),

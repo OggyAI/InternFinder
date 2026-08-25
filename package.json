@@ -14,7 +14,8 @@
     "worker": "npm run start --workspace @intern-finder/worker",
     "worker:once": "npm run once --workspace @intern-finder/worker",
     "worker:fixtures": "npm run fixtures --workspace @intern-finder/worker",
-    "demo": "npm run demo --workspace @intern-finder/worker"
+    "demo": "npm run demo --workspace @intern-finder/worker",
+    "doctor": "npm run doctor --workspace @intern-finder/worker"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

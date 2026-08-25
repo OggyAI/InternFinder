@@ -8,7 +8,8 @@
     "once": "tsx src/index.ts --once",
     "fixtures": "tsx src/index.ts --once --fixtures --force",
     "dry": "tsx src/index.ts --once --fixtures --force --dry-run",
-    "demo": "tsx src/demo.ts"
+    "demo": "tsx src/demo.ts",
+    "doctor": "tsx src/doctor.ts"
   },
   "dependencies": {
     "@intern-finder/core": "*",
