@@ -169,6 +169,17 @@ export const joobleAdapter: SourceAdapter = {
             log.warn('jooble: rate limited (429), ending cycle', body.slice(0, 200));
             break outer;
           }
+          // Jooble sits behind Cloudflare, which answers a blocked request
+          // with an HTML interactive challenge rather than an API error. Say
+          // so plainly: the raw body is a 40KB page of obfuscated JavaScript,
+          // and "Unexpected token '<'" tells nobody anything useful.
+          if (/Just a moment|cf_chl_opt|challenge-platform/.test(body)) {
+            throw new Error(
+              `Jooble ${res.status}: Cloudflare bot challenge (cf-ray ${res.headers.get('cf-ray') ?? '?'}). ` +
+                'Not an authentication error and not something to route around — the key may be ' +
+                'inactive, or this IP may be temporarily blocked. Verify the key with Jooble and retry later.',
+            );
+          }
           throw new Error(`Jooble ${res.status}: ${body.slice(0, 300)}`);
         }
 

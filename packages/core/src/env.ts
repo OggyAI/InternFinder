@@ -61,7 +61,13 @@ let cached: Env | null = null;
 function presentOnly(source: NodeJS.ProcessEnv): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [key, value] of Object.entries(source)) {
-    if (typeof value === 'string' && value.trim() !== '') out[key] = value.trim();
+    if (typeof value !== 'string') continue;
+    // Strip wrapping quotes as well as whitespace. dotenv removes *balanced*
+    // quotes, so a value pasted with only a trailing one survives intact — and
+    // a single stray `"` on an API key that goes into a URL path produced a
+    // Cloudflare challenge page rather than any recognisable auth error.
+    const cleaned = value.trim().replace(/^["']|["']$/g, '').trim();
+    if (cleaned !== '') out[key] = cleaned;
   }
   return out;
 }

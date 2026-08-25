@@ -110,6 +110,16 @@ before trusting Phase 2 output.
   Sorting by length picks the council over the suburb.
 - **Duration ranges take the lower bound.** An "8–12 week" internship must
   clear a 6-week floor on its 8, not its 12.
+- **A stray quote in .env is invisible and baffling.** dotenv strips
+  *balanced* surrounding quotes, so a value pasted with only a trailing `"`
+  survives. On a key that goes into a URL path this produced `/api/<key>%22`
+  and a Cloudflare challenge page, not an auth error. `env.ts` now strips
+  wrapping quotes; `npm run doctor` reports key lengths so a 37-character
+  36-character UUID stands out.
+- **Jooble sits behind Cloudflare.** A blocked request returns an HTML
+  interactive challenge, not an API error, so the naive failure mode is
+  `Unexpected token '<'`. The adapter detects and names it. Do NOT attempt to
+  work around the challenge.
 - **Jooble API keys are region-bound.** The first key issued returned
   Melbourne, *Florida* for `location=Melbourne`, and `au.jooble.org/api/{key}`
   answered 403. An AU-region key is required. The source is disabled in
