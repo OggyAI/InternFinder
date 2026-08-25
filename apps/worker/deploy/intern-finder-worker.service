@@ -23,6 +23,14 @@ Description=intern_finder_bot polling worker
 After=network-online.target
 Wants=network-online.target
 
+# These belong in [Unit], NOT [Service]. systemd moved them here in v229, and
+# in [Service] it parses them, warns "Unknown key name", and silently ignores
+# them — so the restart rate limit was doing nothing at all and a crash loop
+# would have restarted every 30s indefinitely. Caught by reading the journal
+# on first start.
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
 [Service]
 Type=simple
 User=ubuntu
@@ -44,8 +52,6 @@ ExecStart=/home/ubuntu/intern-finder-bot/node_modules/.bin/tsx apps/worker/src/i
 # genuinely unrecoverable (bad env, OOM). Back off rather than hot-looping.
 Restart=on-failure
 RestartSec=30s
-StartLimitIntervalSec=300
-StartLimitBurst=5
 
 # Graceful stop: SIGTERM makes the loop finish its current cycle and exit, so a
 # restart never lands mid-upsert.
