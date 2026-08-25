@@ -1,14 +1,18 @@
-# systemd unit for the polling worker on the Oracle Cloud Always Free VM
-# (VM.Standard.E2.1.Micro). Same shape as the LibStaffer bot: a long-lived
-# polling loop, restarted on failure, logging to journald.
+# systemd unit for the polling worker.
+#
+# Target: the same Oracle Cloud Always Free VM that runs libstaffer-bot —
+# Ubuntu 22.04, VM.Standard.E2.1.Micro (AMD x86_64), 1 OCPU, 1GB RAM.
+# Deliberately mirrors libstaffer-bot.service: same user, same /home/ubuntu
+# layout, same journalctl story, so there is one deployment model on the box
+# rather than two.
 #
 # Install:
 #   sudo cp intern-finder-worker.service /etc/systemd/system/
 #   sudo systemctl daemon-reload
 #   sudo systemctl enable --now intern-finder-worker
 #
-# Watch:      journalctl -u intern-finder-worker -f
-# Restart:    sudo systemctl restart intern-finder-worker
+# Logs:     journalctl -u intern-finder-worker -f
+# Restart:  sudo systemctl restart intern-finder-worker
 #
 # NOTE: /pause and /resume from Telegram (Phase 3) flip app_settings.is_paused
 # in the database. They do NOT stop this service — the loop keeps ticking and
@@ -16,7 +20,6 @@
 
 [Unit]
 Description=intern_finder_bot polling worker
-Documentation=https://github.com/YOUR_USER/intern_finder_bot
 After=network-online.target
 Wants=network-online.target
 
@@ -24,17 +27,18 @@ Wants=network-online.target
 Type=simple
 User=ubuntu
 Group=ubuntu
-WorkingDirectory=/opt/intern-finder-bot
+WorkingDirectory=/home/ubuntu/intern-finder-bot
 
-# All credentials live here, never in this unit file and never in the repo.
-#   sudo install -o ubuntu -g ubuntu -m 600 /dev/null /etc/intern-finder-bot.env
-#   sudo -u ubuntu editor /etc/intern-finder-bot.env
-# Mode 0600 matters: this file holds the Supabase service_role key, which
-# bypasses RLS on every table.
-EnvironmentFile=/etc/intern-finder-bot.env
+# Credentials live in the repo-root .env at mode 0600, read by dotenv in
+# packages/core/src/env.ts. This matches how libstaffer-bot does it rather
+# than introducing a second convention with EnvironmentFile=. The file is
+# gitignored, so it never reaches GitHub.
 Environment=NODE_ENV=production
 
-ExecStart=/usr/bin/npm run start --workspace @intern-finder/worker
+# tsx directly, not `npm run`. npm would fork an extra shell and an extra node
+# process for no benefit, and on a 1GB box shared with another bot that is
+# ~40MB of pure overhead.
+ExecStart=/home/ubuntu/intern-finder-bot/node_modules/.bin/tsx apps/worker/src/index.ts
 
 # The loop already swallows per-cycle errors, so a process exit means something
 # genuinely unrecoverable (bad env, OOM). Back off rather than hot-looping.
@@ -54,22 +58,30 @@ SyslogIdentifier=intern-finder
 
 # --- Hardening -------------------------------------------------------------
 # The worker reads a config file and makes outbound HTTPS calls. It has no
-# business writing anywhere on disk or seeing other users' processes.
+# business writing anywhere else on disk.
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=/opt/intern-finder-bot
+ReadWritePaths=/home/ubuntu/intern-finder-bot
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
 RestrictNamespaces=true
 RestrictSUIDSGID=true
 LockPersonality=true
-MemoryDenyWriteExecute=false
 
-# 1 GB of RAM on an E2.1.Micro, shared with anything else on the box.
-MemoryMax=384M
+# ProtectHome is deliberately NOT set. It defaults to off, and turning it on
+# would make /home/ubuntu — where this app actually lives — invisible to the
+# service, so it would fail at startup with a misleading "not found".
+# An earlier version of this file had ProtectHome=true from when the app was
+# assumed to live in /opt. Do not reinstate it without moving the app.
+
+# 1GB of RAM shared with libstaffer-bot. MemoryHigh throttles and reclaims
+# first; MemoryMax is the hard ceiling that triggers an OOM kill. Leaving a gap
+# between them means a memory spike during a large ingest gets slowed down
+# rather than killed outright.
+MemoryHigh=256M
+MemoryMax=320M
 
 [Install]
 WantedBy=multi-user.target
