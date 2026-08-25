@@ -132,9 +132,32 @@ network), `--force` (ignore poll cadence and quota gating), `--source=adzuna,joo
 
 ## Deploying to the Oracle VM
 
-See the header of [`apps/worker/deploy/intern-finder-worker.service`](apps/worker/deploy/intern-finder-worker.service)
-for the full install sequence. Credentials go in `/etc/intern-finder-bot.env` at mode
-`0600`, never in the unit file and never in the repo.
+**Deployed and running** as `intern-finder-worker` on the Ubuntu 22.04 E2.1.Micro that
+also runs `libstaffer-bot`.
+
+| | |
+|---|---|
+| App | `/home/ubuntu/intern-finder-bot`, run as `ubuntu` |
+| Secrets | `/home/ubuntu/intern-finder-bot/.env`, mode `0600` (same convention as libstaffer-bot) |
+| Repo access | Read-only GitHub deploy key at `~/.ssh/id_internfinder` |
+| Runtime | Node 22 from NodeSource — Ubuntu 22.04's default Node is far too old |
+| Swap | 2 GB swapfile. The box has 956 MB RAM and shipped with none; `npm install` peaks around 139 MB and does touch swap |
+| Memory limits | `MemoryHigh=200M` / `MemoryMax=300M`, set from a measured cycle that peaked at 121.5 MB |
+
+Update it — pull, install, typecheck, doctor, restart:
+
+```bash
+~/intern-finder-bot/apps/worker/deploy/update.sh
+```
+
+Logs:
+
+```bash
+journalctl -u intern-finder-worker -f
+```
+
+**The VM is on UTC.** `recordPoll()` rolls each source's daily quota at UTC midnight,
+so the Adzuna budget resets around 10am Melbourne time.
 
 ---
 

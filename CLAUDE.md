@@ -71,15 +71,16 @@ broken by a future change.
 
 | Phase | State |
 |---|---|
-| 1 — schema, Adzuna/Jooble ingest, rule-based pre-filter | **done**, verified offline |
+| 1 — schema, Adzuna/Jooble ingest, rule-based pre-filter | **done**, deployed and running on the VM |
 | 2 — Claude scoring, threshold promotion to `matches` | not started |
 | 3 — Telegram bot, Next.js dashboard | not started |
 | 4 — Playwright career-page scraping | not started, optional |
 
-Phase 1 is verified against **fixtures, not live APIs** — the user had Supabase
-credentials but not Adzuna/Jooble ones. The adapters are written to documented
-response shapes. Confirm them against real responses on the first live run
-before trusting Phase 2 output.
+Adzuna is verified against live traffic and running under systemd every 6
+hours. Jooble is **not working**: its key returns a Cloudflare bot challenge,
+and an earlier US-region key returned Melbourne, Florida. The row stays
+enabled so it recovers by itself if the block lifts; each failed cycle costs
+one call and is logged, not fatal.
 
 ## 5. Gotchas that have already bitten
 
