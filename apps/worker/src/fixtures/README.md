@@ -15,7 +15,7 @@ Each entry targets one pre-filter path:
 |---|---|---|
 | adzuna | Cyber Security Internship, Docklands, unpaid, 12wk, part-time | **pass**, highest multiplier |
 | adzuna | IT Support Officer, Werribee, casual, paid | **pass** |
-| adzuna | Security Guard, Hoppers Crossing | drop — `excluded_keyword` |
+| adzuna | Security Guard, Sunshine | drop — `excluded_keyword` |
 | adzuna | SOC Analyst, Sydney | drop — `out_of_radius` |
 | adzuna | Cyber Graduate Program, citizenship required | drop — `work_rights` |
 | adzuna | Data Entry Officer, Sunshine, part-time | **pass** |

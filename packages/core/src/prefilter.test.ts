@@ -38,10 +38,10 @@ describe('prefilter — rejecting', () => {
     expect(buckets(r)).toContain('out_of_radius');
   });
 
-  it('rejects an eastern-suburbs Melbourne role that falls outside the radius', () => {
-    // Documents a real consequence of centring on Hoppers Crossing rather than
-    // the CBD: Lilydale is 59km away and gets dropped.
-    const r = run({ title: 'IT Support Officer', locationRaw: 'Lilydale VIC 3140' });
+  it('rejects a nearby regional city that falls outside the radius', () => {
+    // Geelong is 65km from the CBD. A reader who assumes "Victoria" means
+    // "in range" is wrong, and the reason is recorded on the row.
+    const r = run({ title: 'IT Support Officer', locationRaw: 'Geelong VIC 3220' });
     expect(buckets(r)).toContain('out_of_radius');
   });
 
@@ -59,7 +59,7 @@ describe('prefilter — rejecting', () => {
     expect(buckets(r)).toContain('excluded_keyword');
   });
 
-  it('rejects roles requiring work rights a student visa does not confer', () => {
+  it('rejects roles requiring work rights the applicant does not hold', () => {
     const r = run({
       title: 'Cyber Security Graduate Program 2027',
       description: 'Applicants must be an Australian Citizen and obtain a Baseline Clearance.',
@@ -113,7 +113,7 @@ describe('prefilter — toggles', () => {
 
   it('honours a widened radius', () => {
     const wide = makeTestFilterSet({ radius_km: 100 });
-    const r = run({ title: 'IT Helpdesk Support', locationRaw: 'Ballarat VIC 3350' }, wide);
+    const r = run({ title: 'IT Helpdesk Support', locationRaw: 'Geelong VIC 3220' }, wide);
     expect(buckets(r)).not.toContain('out_of_radius');
   });
 });

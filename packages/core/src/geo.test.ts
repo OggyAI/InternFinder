@@ -1,22 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import { distanceFromCentre, hasAustralianSignal, haversineKm, resolveLocation } from './geo';
 
-const HOPPERS = { lat: -37.8829, lng: 144.7003 };
+// Melbourne CBD — the placeholder centre the seed migration ships with.
+// Distances below all follow from THIS point; move the centre and they change,
+// which is the subject of the last test in this file.
+const CENTRE = { lat: -37.8136, lng: 144.9631 };
 
 describe('haversineKm', () => {
   it('is zero for the same point', () => {
-    expect(haversineKm(HOPPERS, HOPPERS)).toBe(0);
+    expect(haversineKm(CENTRE, CENTRE)).toBe(0);
   });
 
-  it('matches a known distance: Hoppers Crossing to Melbourne CBD (~25km)', () => {
-    const cbd = { lat: -37.8136, lng: 144.9631 };
-    expect(haversineKm(HOPPERS, cbd)).toBeGreaterThan(23);
-    expect(haversineKm(HOPPERS, cbd)).toBeLessThan(27);
+  it('matches a known distance: Melbourne CBD to Geelong (~65km)', () => {
+    const geelong = { lat: -38.1499, lng: 144.3617 };
+    expect(haversineKm(CENTRE, geelong)).toBeGreaterThan(63);
+    expect(haversineKm(CENTRE, geelong)).toBeLessThan(67);
   });
 
   it('is symmetric', () => {
     const cbd = { lat: -37.8136, lng: 144.9631 };
-    expect(haversineKm(HOPPERS, cbd)).toBeCloseTo(haversineKm(cbd, HOPPERS), 6);
+    expect(haversineKm(CENTRE, cbd)).toBeCloseTo(haversineKm(cbd, CENTRE), 6);
   });
 });
 
@@ -36,9 +39,10 @@ describe('resolveLocation', () => {
     expect(r.state).toBe('VIC');
   });
 
-  it('resolves 3029 to Hoppers Crossing, the search centre', () => {
-    // 3029 also covers Tarneit and Truganina; Hoppers Crossing is listed first
-    // in the gazetteer precisely so it wins this lookup.
+  it('resolves a postcode shared by several suburbs to the first listed', () => {
+    // 3029 covers Hoppers Crossing, Tarneit and Truganina. One postcode cannot
+    // resolve to three points, so gazetteer order decides — deterministically,
+    // and close enough that a few km either way does not change the outcome.
     const r = resolveLocation('VIC 3029');
     expect(r.suburb).toBe('Hoppers Crossing');
   });
@@ -79,38 +83,49 @@ describe('resolveLocation', () => {
 
 describe('distanceFromCentre', () => {
   it('is null when the location could not be resolved', () => {
-    expect(distanceFromCentre(HOPPERS, resolveLocation('Nowhereville'))).toBeNull();
+    expect(distanceFromCentre(CENTRE, resolveLocation('Nowhereville'))).toBeNull();
   });
 
-  it('puts Werribee comfortably inside a 50km radius', () => {
-    const d = distanceFromCentre(HOPPERS, resolveLocation('Werribee VIC 3030'));
+  it('puts Werribee inside a 50km radius', () => {
+    const d = distanceFromCentre(CENTRE, resolveLocation('Werribee VIC 3030'));
     expect(d).not.toBeNull();
-    expect(d!).toBeLessThan(10);
-  });
-
-  it('puts Geelong INSIDE a 50km radius, which is easy to get wrong', () => {
-    // Hoppers Crossing is far enough west that Geelong (42km) is closer than
-    // several eastern Melbourne suburbs. Worth an explicit test because the
-    // intuition "Geelong is a different city, so it must be out of range" is
-    // wrong for this particular centre point.
-    const d = distanceFromCentre(HOPPERS, resolveLocation('Geelong VIC 3220'));
     expect(d!).toBeLessThan(50);
   });
 
-  it('puts Ballarat outside a 50km radius', () => {
-    const d = distanceFromCentre(HOPPERS, resolveLocation('Ballarat VIC 3350'));
+  it('puts Geelong outside a 50km radius of the CBD', () => {
+    const d = distanceFromCentre(CENTRE, resolveLocation('Geelong VIC 3220'));
     expect(d!).toBeGreaterThan(50);
   });
 
-  it('puts eastern suburbs like Lilydale outside the radius', () => {
-    // The flip side of the same geometry: a real Melbourne job in Lilydale is
-    // further from the centre point than Geelong is.
-    const d = distanceFromCentre(HOPPERS, resolveLocation('Lilydale VIC 3140'));
+  it('puts Ballarat outside a 50km radius', () => {
+    const d = distanceFromCentre(CENTRE, resolveLocation('Ballarat VIC 3350'));
     expect(d!).toBeGreaterThan(50);
+  });
+
+  it('puts outer eastern suburbs like Lilydale inside the radius', () => {
+    const d = distanceFromCentre(CENTRE, resolveLocation('Lilydale VIC 3140'));
+    expect(d!).toBeLessThan(50);
+  });
+
+  it('gives a completely different answer from a different centre point', () => {
+    // The centre is configuration, not a constant, and moving it inverts which
+    // places are in range. From the CBD, Lilydale is in and Geelong is out.
+    // From an outer western suburb the reverse holds — Geelong comes within
+    // 50km and Lilydale drops out. Worth asserting, because "50km of Melbourne"
+    // sounds like it means one fixed thing and does not.
+    const west = { lat: -37.9, lng: 144.6614 }; // Werribee
+    const geelong = resolveLocation('Geelong VIC 3220');
+    const lilydale = resolveLocation('Lilydale VIC 3140');
+
+    expect(distanceFromCentre(CENTRE, geelong)!).toBeGreaterThan(50);
+    expect(distanceFromCentre(west, geelong)!).toBeLessThan(50);
+
+    expect(distanceFromCentre(CENTRE, lilydale)!).toBeLessThan(50);
+    expect(distanceFromCentre(west, lilydale)!).toBeGreaterThan(50);
   });
 
   it('puts Sydney far outside', () => {
-    const d = distanceFromCentre(HOPPERS, resolveLocation('Sydney, New South Wales'));
+    const d = distanceFromCentre(CENTRE, resolveLocation('Sydney, New South Wales'));
     expect(d!).toBeGreaterThan(700);
   });
 });

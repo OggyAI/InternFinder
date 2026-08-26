@@ -33,8 +33,8 @@ for (const entry of MELBOURNE_SUBURBS) {
   const key = normaliseName(entry.name);
   if (!byName.has(key)) byName.set(key, entry);
   for (const pc of entry.postcodes) {
-    // First entry wins: 3029 covers Hoppers Crossing, Tarneit and Truganina,
-    // and Hoppers Crossing is listed first because it is the search centre.
+    // First entry wins where a postcode spans several suburbs — 3029 covers
+    // Hoppers Crossing, Tarneit and Truganina, and resolves to the first.
     if (!byPostcode.has(pc)) byPostcode.set(pc, entry);
   }
 }
@@ -177,7 +177,6 @@ function extractState(s: string | null | undefined): string | null {
 export function hasAustralianSignal(locationRaw: string | null | undefined): boolean {
   if (!locationRaw) return false;
   if (extractState(locationRaw) !== null) return true;
-  // Prefix boundary only, so "Australian Capital Territory" counts too.
   // Leading boundary only, so "Australian Capital Territory" counts too.
   if (/\baustralia/i.test(locationRaw)) return true;
   // A 4-digit token, not part of a longer number. Australian postcodes are

@@ -17,12 +17,20 @@ insert into public.filters (
   exclude_sponsorship_required, max_listing_age_days, keep_unknown_location
 ) values (
   '00000000-0000-4000-8000-000000000001',
-  'Melbourne — IT & cyber, student visa',
+  'Melbourne — IT & cyber',
   true,
-  -- Hoppers Crossing VIC 3029. Approximate suburb centroid, not a rooftop
-  -- geocode; a few hundred metres of error is irrelevant against a 50 km radius.
-  -- Edit this row (not any code) to search from somewhere else.
-  'Hoppers Crossing VIC 3029', -37.8829, 144.7003, 50,
+  -- PLACEHOLDER. Melbourne CBD, so a fresh install returns sensible results
+  -- out of the box. Change this row to search from wherever you actually are:
+  --
+  --   update public.filters
+  --      set center_label = 'Your Suburb STATE 0000',
+  --          center_lat = -00.0000, center_lng = 000.0000
+  --    where is_active;
+  --
+  -- Then `npm run reprocess` to re-evaluate listings already stored. Approximate
+  -- suburb centroids are fine here; a few hundred metres of error is irrelevant
+  -- against a 50 km radius.
+  'Melbourne VIC 3000', -37.8136, 144.9631, 50,
   -- Filter out anything under ~6 weeks. No upper bound: a semester-long
   -- part-time internship can run well past 12 weeks and is still wanted.
   6, null,
@@ -99,7 +107,7 @@ values
   -- Sales roles that keyword-match on the product they sell
   ('00000000-0000-4000-8000-000000000001', 'Sales Representative',  'exclude', false, null),
   ('00000000-0000-4000-8000-000000000001', 'Business Development Manager', 'exclude', false, null),
-  -- Seniority that is out of reach for a final-year student
+  -- Seniority well beyond an entry-level or student applicant
   ('00000000-0000-4000-8000-000000000001', 'Head of',               'exclude', false, null),
   ('00000000-0000-4000-8000-000000000001', 'Principal Consultant',  'exclude', false, null),
   ('00000000-0000-4000-8000-000000000001', 'Chief Information Security Officer', 'exclude', false, null)

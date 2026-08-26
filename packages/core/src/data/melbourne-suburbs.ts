@@ -12,17 +12,17 @@
  * good to a few hundred metres. Against a 50 km radius that error is noise.
  * They are NOT survey-grade and should not be used for anything finer.
  *
- * COVERAGE: metro Melbourne, weighted toward the western suburbs near the
- * search centre, plus regional centres that fall OUTSIDE the radius (Ballarat,
- * Bendigo, Traralgon) so "Victorian but too far" listings get correctly
- * rejected rather than silently kept.
+ * COVERAGE: metro Melbourne, plus regional centres well outside any plausible
+ * commute (Ballarat, Bendigo, Traralgon) so "Victorian but too far" listings
+ * get correctly rejected rather than silently kept.
  *
- * A NOTE ON THE GEOMETRY, because it is counter-intuitive: the search centre
- * is in the far west, so a 50 km radius from Hoppers Crossing is NOT the same
- * thing as "Melbourne". It reaches Geelong (42 km) and Bacchus Marsh (33 km),
- * but excludes Lilydale (59 km), Berwick (59 km) and Cranbourne (57 km).
- * Eastern-suburb roles get dropped on distance even though they are
- * unambiguously Melbourne jobs. Widen filters.radius_km if that is not wanted.
+ * A NOTE ON THE GEOMETRY, because it is counter-intuitive: a radius is drawn
+ * from wherever filters.center_lat/lng points, and that is often NOT the same
+ * thing as "Melbourne". From the CBD, 50 km covers Lilydale (35 km) but not
+ * Geelong (65 km). From an outer western suburb such as Hoppers Crossing the
+ * picture inverts — Geelong falls to 42 km and Lilydale climbs to 59 km, so
+ * genuinely-Melbourne eastern roles get dropped on distance. Check what your
+ * own centre point actually reaches before assuming the radius is too tight.
  *
  * A suburb missing from this table is not an error — it resolves to
  * distance = null, and filters.keep_unknown_location decides what happens
@@ -59,7 +59,7 @@ export const MELBOURNE_SUBURBS: SuburbEntry[] = [
   { name: 'St Kilda', postcodes: ['3182'], lat: -37.8683, lng: 144.9800, state: 'VIC' },
   { name: 'Albert Park', postcodes: ['3206'], lat: -37.8417, lng: 144.9550, state: 'VIC' },
 
-  // --- Western suburbs (closest to the search centre) ----------------------
+  // --- Western suburbs -----------------------------------------------------
   { name: 'Hoppers Crossing', postcodes: ['3029'], lat: -37.8829, lng: 144.7003, state: 'VIC' },
   { name: 'Tarneit', postcodes: ['3029'], lat: -37.8333, lng: 144.6667, state: 'VIC' },
   { name: 'Truganina', postcodes: ['3029'], lat: -37.8167, lng: 144.7333, state: 'VIC' },
@@ -190,8 +190,9 @@ export const MELBOURNE_SUBURBS: SuburbEntry[] = [
   { name: 'Frankston', postcodes: ['3199'], lat: -38.1417, lng: 145.1233, state: 'VIC' },
 
   // --- Regional Victoria and interstate ------------------------------------
-  // Geelong and Lara sit INSIDE a 50 km radius of Hoppers Crossing (42 km and
-  // 30 km). Ballarat, Bendigo and Traralgon are outside it.
+  // Whether Geelong and Lara are in range depends entirely on the centre
+  // point: ~65 km and ~57 km from the CBD, but 42 km and 30 km from an outer
+  // western suburb. Ballarat, Bendigo and Traralgon are outside either way.
   { name: 'Lara', postcodes: ['3212'], lat: -38.0250, lng: 144.4083, state: 'VIC' },
   { name: 'Geelong', postcodes: ['3220'], lat: -38.1499, lng: 144.3617, state: 'VIC' },
   { name: 'Ballarat', postcodes: ['3350'], lat: -37.5622, lng: 143.8503, state: 'VIC' },

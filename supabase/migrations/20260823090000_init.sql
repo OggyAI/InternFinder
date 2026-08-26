@@ -35,7 +35,8 @@ create table if not exists public.filters (
   name                 text not null check (char_length(name) between 1 and 80),
   is_active            boolean not null default false,
 
-  -- Centre point for the radius search. Seeded as Hoppers Crossing VIC 3029.
+  -- Centre point for the radius search. Seeded to a placeholder; set it to
+  -- wherever you actually search from.
   -- Stored as a plain lat/lng rather than PostGIS: one point, one distance
   -- formula, no extension needed.
   center_label         text not null,
@@ -48,8 +49,9 @@ create table if not exists public.filters (
   max_duration_weeks   integer check (max_duration_weeks is null
                                       or max_duration_weeks >= min_duration_weeks),
 
-  -- Reject listings that clearly require work rights a student visa holder
-  -- does not have (sponsorship, PR/citizen-only, security clearance).
+  -- Reject listings requiring work rights the applicant does not hold
+  -- (sponsorship, PR/citizen-only, security clearance). Which terms count is
+  -- configured in filter_keywords, so this suits any visa situation.
   exclude_sponsorship_required boolean not null default true,
 
   -- Drop listings older than this at ingest. Stale postings are usually filled.

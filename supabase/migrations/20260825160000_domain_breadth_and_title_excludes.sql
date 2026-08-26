@@ -5,9 +5,9 @@
 --
 -- 1. RECALL. `Web Developer Intern` and `STAR Program Intern - Melbourne` were
 --    rejected with no_domain_keyword_match because the domain list only knew
---    about cyber and IT support. The person using this is a final-year IT
---    student, not exclusively a cyber student — a dev or cloud internship is
---    real experience and a real stepping stone into a SOC role.
+--    about cyber and IT support. For an IT student rather than a purely
+--    security-focused one, a dev or cloud internship is real experience and a
+--    real stepping stone into a SOC role.
 --
 -- 2. PRECISION. Eight Cleaner listings passed, every one of them matched via
 --    provider_matched_term = 'Helpdesk'. Adzuna full-text searches the whole

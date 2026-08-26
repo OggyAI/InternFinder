@@ -1,8 +1,13 @@
 # CLAUDE.md — intern_finder_bot
 
-Job and internship discovery agent for a final-year IT/Cybersecurity student in
-Melbourne on a **student visa**. Scans job boards, filters against editable
-criteria, scores against a resume, notifies via Telegram and a dashboard.
+Job and internship discovery agent for an IT/Cybersecurity student in Melbourne.
+Scans job boards, filters against editable criteria, scores against a resume,
+notifies via Telegram and a dashboard.
+
+Everything specific to one person — search centre, radius, keywords, weights,
+and which work-rights terms disqualify a role — is a database row, not a
+constant. The repo ships a Melbourne CBD placeholder; the running instance is
+configured separately.
 
 Read `README.md` for setup. This file is the set of rules that must not be
 broken by a future change.
@@ -104,8 +109,10 @@ one call and is logged, not fatal.
   `"1"`, and a predicted salary is **not** evidence a role is paid. Treating it
   as such would mark every silent listing paid and suppress exactly the unpaid
   roles the weighting is meant to surface.
-- **The radius is not "Melbourne".** From Hoppers Crossing, 50km reaches
-  Geelong (42km) but excludes Lilydale and Berwick (both 59km).
+- **The radius is not "Melbourne", and which places it reaches depends
+  entirely on the centre point.** From the CBD, 50km covers Lilydale (35km) but
+  not Geelong (65km). From an outer western suburb it inverts: Geelong 42km,
+  Lilydale 59km. There is a test asserting exactly this.
 - **Location segment order.** Providers write location most-specific-first
   (`"Footscray, Maribyrnong, Victoria"`). Take the first recognised segment.
   Sorting by length picks the council over the suburb.
@@ -123,8 +130,8 @@ one call and is logged, not fatal.
   work around the challenge.
 - **Jooble API keys are region-bound.** The first key issued returned
   Melbourne, *Florida* for `location=Melbourne`, and `au.jooble.org/api/{key}`
-  answered 403. An AU-region key is required. The source is disabled in
-  `sources` until then.
+  answered 403. An AU-region key is required, and a replacement AU key still
+  hits the Cloudflare challenge. Toggle `sources.enabled` to stop it retrying.
 - **An unresolved location must still look Australian.**
   `keep_unknown_location` exists for suburbs missing from the gazetteer, not
   for other countries — without `hasAustralianSignal()` the US Jooble results

@@ -45,8 +45,8 @@ export function buildKeywordQueries(
 
 /**
  * Both APIs geocode the `where`/`location` string themselves, and neither
- * copes well with "Hoppers Crossing VIC 3029" — the state and postcode
- * confuse the lookup. Send the bare locality name.
+ * copes well with a fully-qualified "Suburb STATE 0000" — the state and
+ * postcode confuse the lookup. Send the bare locality name.
  */
 export function locationQuery(filter: FilterRow): string {
   return filter.center_label

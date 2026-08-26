@@ -171,8 +171,22 @@ so the Adzuna budget resets around 10am Melbourne time.
 | `sources` | Per-source enable, cadence, daily call budget |
 | `app_settings` | Pause switch, notify threshold |
 
-Seeded to: **50km of Hoppers Crossing VIC 3029**, minimum **6 weeks**, no upper bound,
-listings under **30 days** old, work-rights excludes **on**.
+Seeded to a **Melbourne CBD placeholder** with a **50km** radius, minimum **6 weeks**,
+no upper bound, listings under **30 days** old, work-rights excludes **on**.
+
+The centre point is a placeholder on purpose — set it to wherever you actually search
+from, then re-evaluate everything already stored:
+
+```sql
+update public.filters
+   set center_label = 'Your Suburb STATE 0000',
+       center_lat = -00.0000, center_lng = 000.0000
+ where is_active;
+```
+
+```bash
+npm run reprocess
+```
 
 ### Soft preference weighting
 
@@ -207,10 +221,11 @@ silence isn't evidence of a short role, and requiring a positive 6-week match wo
 throw away nearly every real internship. Only a stated-and-clearly-too-short duration
 gets rejected.
 
-**The radius is not "Melbourne".** Centring on Hoppers Crossing, a 50km circle reaches
-Geelong (42km) and Bacchus Marsh (33km) but **excludes** Lilydale (59km), Berwick
-(59km) and Cranbourne (57km). Real Melbourne jobs in the eastern suburbs get dropped on
-distance. Widen `filters.radius_km` if that's not what you want.
+**The radius is not "Melbourne", and what it reaches depends entirely on your centre
+point.** From the CBD a 50km circle covers Lilydale (35km) but not Geelong (65km). Move
+the centre to an outer western suburb and it inverts — Geelong falls to 42km while
+Lilydale climbs to 59km, so genuinely-Melbourne eastern roles get dropped on distance.
+Check what your own centre actually reaches before deciding the radius is wrong.
 
 **Rejections are kept, not deleted.** Every dropped listing is stored with its reasons
 in `prefilter_reasons`. An over-aggressive filter shows up as a pile of rows sharing one
