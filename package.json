@@ -17,7 +17,8 @@
     "demo": "npm run demo --workspace @intern-finder/worker",
     "doctor": "npm run doctor --workspace @intern-finder/worker",
     "report": "npm run report --workspace @intern-finder/worker",
-    "reprocess": "npm run reprocess --workspace @intern-finder/worker"
+    "reprocess": "npm run reprocess --workspace @intern-finder/worker",
+    "score": "npm run score --workspace @intern-finder/worker"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

@@ -11,9 +11,11 @@
     "demo": "tsx src/demo.ts",
     "doctor": "tsx src/doctor.ts",
     "report": "tsx src/report.ts",
-    "reprocess": "tsx src/reprocess.ts"
+    "reprocess": "tsx src/reprocess.ts",
+    "score": "tsx src/score.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.120.0",
     "@intern-finder/core": "*",
     "zod": "^3.24.1"
   },

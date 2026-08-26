@@ -108,8 +108,23 @@ function safeDate(s: string): Date | null {
 const ENTITIES: Record<string, string> = {
   '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'", '&nbsp;': ' ',
 };
+
+/**
+ * Decode entities and repair mojibake.
+ *
+ * Adzuna serves some titles double-encoded, so a UTF-8 non-breaking space
+ * arrives as the two characters U+00C2 U+00A0 and renders as a stray "A-hat":
+ * "Software Developer InternA  - Melbourne". It reaches the database, the
+ * scoring prompt, and eventually a Telegram message, so it is worth fixing at
+ * the point of entry rather than papering over it at each display site.
+ */
 function decodeEntities(s: string): string {
-  return s.replace(/&(amp|lt|gt|quot|#39|nbsp);/g, (m) => ENTITIES[m] ?? m);
+  return s
+    .replace(/&(amp|lt|gt|quot|#39|nbsp);/g, (m) => ENTITIES[m] ?? m)
+    .replace(/Â /g, ' ')   // double-encoded non-breaking space
+    .replace(/ /g, ' ')          // plain non-breaking space
+    .replace(/[ 	]{2,}/g, ' ')
+    .trim();
 }
 
 export const adzunaAdapter: SourceAdapter = {
