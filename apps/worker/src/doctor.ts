@@ -150,6 +150,40 @@ async function main(): Promise<void> {
     }
   }
 
+  // --- 4b. Scoring (Phase 2) ----------------------------------------------
+  if (missing.length === 0) {
+    console.log('\nScoring');
+    const anthropic = Boolean(env.ANTHROPIC_API_KEY);
+    console.log(`  ${tick(anthropic)} ANTHROPIC_API_KEY    ${anthropic ? `set, model ${env.ANTHROPIC_MODEL}` : 'missing — scoring will be skipped'}`);
+
+    const { data: settingsRow, error: settingsError } = await db
+      .from('app_settings')
+      .select('scoring_enabled,scoring_batch_size,max_scoring_spend_usd_per_cycle,max_scoring_spend_usd_per_day,scoring_spend_today')
+      .eq('id', 1)
+      .maybeSingle();
+
+    if (settingsError) {
+      console.log('  --   scoring settings    columns missing — apply 20260826120000_scoring_settings.sql');
+    } else {
+      const s = settingsRow as Record<string, unknown>;
+      console.log(
+        `  ${tick(Boolean(s.scoring_enabled))} scoring in loop     ` +
+          `${s.scoring_enabled ? 'enabled' : 'disabled (queue will build up, nothing lost)'}`,
+      );
+      console.log(
+        `  --   budget              $${Number(s.scoring_spend_today).toFixed(4)} spent today ` +
+          `of $${Number(s.max_scoring_spend_usd_per_day).toFixed(2)}/day, ` +
+          `$${Number(s.max_scoring_spend_usd_per_cycle).toFixed(2)}/cycle, batch ${s.scoring_batch_size}`,
+      );
+    }
+
+    const { count: scored } = await db.from('matches').select('*', { count: 'exact', head: true });
+    const { count: passedCount } = await db
+      .from('job_listings').select('*', { count: 'exact', head: true }).eq('prefilter_status', 'passed');
+    const backlog = (passedCount ?? 0) - (scored ?? 0);
+    console.log(`  --   queue               ${scored ?? 0} scored, ${backlog} awaiting a score`);
+  }
+
   // --- 5. Security posture -------------------------------------------------
   // The single most important property in this project: the anon key must
   // reach nothing. RLS is enabled with no policies and privileges are revoked,

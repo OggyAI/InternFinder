@@ -121,6 +121,18 @@ export const AppSettingsRow = z.object({
   is_paused: z.boolean(),
   notify_score_threshold: z.number().int(),
   max_notifications_per_day: z.number().int(),
+
+  // Phase 2 scoring. Defaulted so the worker still boots against a database
+  // that has not had the scoring migration applied yet — it just scores
+  // nothing rather than crashing the poll loop.
+  scoring_enabled: z.boolean().default(false),
+  scoring_batch_size: z.number().int().default(8),
+  // numeric columns arrive as strings over PostgREST; coerce or every
+  // comparison against them silently becomes string comparison.
+  max_scoring_spend_usd_per_cycle: z.coerce.number().default(0),
+  max_scoring_spend_usd_per_day: z.coerce.number().default(0),
+  scoring_spend_today: z.coerce.number().default(0),
+  scoring_spend_reset_at: z.string().default(() => new Date(0).toISOString()),
 });
 export type AppSettingsRow = z.infer<typeof AppSettingsRow>;
 

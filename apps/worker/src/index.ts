@@ -7,6 +7,7 @@ import {
   loadSources,
   log,
   recordPoll,
+  type AppSettingsRow,
   type FilterSet,
   type NormalizedListing,
   type SourceName,
@@ -18,6 +19,7 @@ import { adzunaFixtureAdapter, joobleFixtureAdapter } from './sources/fixtures';
 import type { SourceAdapter } from './sources/types';
 import { ingest, type IngestStats } from './ingest';
 import { flagValue, hasFlag } from './cli';
+import { runScoring, spendAllowance } from './scoring-run';
 
 /**
  * Worker entrypoint.
@@ -148,6 +150,57 @@ async function runCycle(cli: Cli): Promise<void> {
     // daily allowance. Skipping this made repeated dry runs invisible to the
     // quota guard while quietly spending the real budget.
     await recordPoll(source.name, { calls, ok: true });
+  }
+
+  // --- Phase 2: score whatever the pre-filter let through -----------------
+  // Deliberately after every source, so one scoring pass covers the whole
+  // cycle rather than one pass per source paying the cached-prefix cost twice.
+  await scoreCycle(cli, settings);
+}
+
+/**
+ * Score this cycle's backlog, inside the configured spend ceiling.
+ *
+ * Never throws into the poll loop. Scoring costs real money and talks to a
+ * third service; if it breaks, ingestion must keep running, because the queue
+ * is derived from listings that have no match row and therefore survives
+ * indefinitely until scoring works again.
+ */
+async function scoreCycle(cli: Cli, settings: AppSettingsRow): Promise<void> {
+  if (!settings.scoring_enabled) {
+    log.debug('scoring: disabled in app_settings, skipping');
+    return;
+  }
+
+  const { allowed, spentToday, reason } = spendAllowance(settings);
+  if (allowed <= 0) {
+    log.info(`scoring: ${reason}`);
+    return;
+  }
+  log.info(`scoring: ${reason} ($${spentToday.toFixed(4)} spent today)`);
+
+  try {
+    const stats = await runScoring({
+      budgetUsd: allowed,
+      batchSize: settings.scoring_batch_size,
+      dryRun: cli.dryRun,
+    });
+
+    if (stats.queued === 0) {
+      log.info('scoring: nothing new to score');
+      return;
+    }
+    const notifiable =
+      (stats.distribution['80-100'] ?? 0) + (stats.distribution['70-79'] ?? 0);
+    log.info(
+      `scoring: ${stats.scored}/${stats.queued} scored for $${stats.costUsd.toFixed(4)}, ` +
+        `${notifiable} at or above the notify threshold` +
+        (stats.retries ? `, ${stats.retries} retries` : '') +
+        (stats.failedBatches ? `, ${stats.failedBatches} failed` : '') +
+        (stats.stoppedOnBudget ? ' (stopped on budget)' : ''),
+    );
+  } catch (err) {
+    log.error(`scoring: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 
