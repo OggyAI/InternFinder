@@ -32,6 +32,12 @@ export interface ScoringOptions {
   dryRun?: boolean;
   /** Re-score listings that already have a match row. */
   rescore?: boolean;
+  /**
+   * Called after each batch. Exists because moving the engine out of the CLI
+   * silently removed its per-batch logging, leaving a forty-batch run with no
+   * output for ten minutes — indistinguishable from a hang.
+   */
+  onBatch?: (progress: { done: number; total: number; costUsd: number }) => void;
 }
 
 export interface ScoringStats {
@@ -242,6 +248,7 @@ export async function runScoring(options: ScoringOptions): Promise<ScoringStats>
       if (error) throw new Error(`match upsert failed: ${error.message}`);
     }
     stats.scored += rows.length;
+    options.onBatch?.({ done: stats.scored, total: queue.length, costUsd: stats.costUsd });
   }
 
   if (!options.dryRun) await recordSpend(stats.costUsd);

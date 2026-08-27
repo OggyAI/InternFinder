@@ -44,6 +44,8 @@ async function main(): Promise<void> {
     limit: limitFlag ? Number(limitFlag) : null,
     dryRun,
     rescore: hasFlag('rescore'),
+    onBatch: ({ done, total, costUsd }) =>
+      log.info(`  ${String(done).padStart(4)}/${total} scored, $${costUsd.toFixed(4)}`),
   });
 
   log.info('');
