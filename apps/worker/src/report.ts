@@ -88,6 +88,62 @@ async function main(): Promise<void> {
       `   real salary stated  ${withRealSalary}/${passed.length}\n`,
   );
 
+  // --- Scored matches (Phase 2) --------------------------------------------
+  const { data: matchData, count: matchCount } = await db
+    .from('matches')
+    .select('fit_score,base_score,preference_multiplier,category,status,reasoning,listing_id', { count: 'exact' })
+    .order('fit_score', { ascending: false })
+    // fit_score clamps at 100, so several listings tie there. base_score is the
+    // unclamped judgement and breaks those ties in the order that means something.
+    .order('base_score', { ascending: false })
+    .limit(2000);
+
+  const matches = (matchData ?? []) as unknown as {
+    fit_score: number; base_score: number; preference_multiplier: number;
+    category: string; status: string; reasoning: string; listing_id: string;
+  }[];
+
+  if (matches.length > 0) {
+    const { data: settingsRow } = await db
+      .from('app_settings').select('notify_score_threshold,scoring_spend_today').eq('id', 1).maybeSingle();
+    const st = settingsRow as { notify_score_threshold: number; scoring_spend_today: number } | null;
+    const threshold = st?.notify_score_threshold ?? 70;
+
+    console.log(`${matchCount} scored, $${Number(st?.scoring_spend_today ?? 0).toFixed(4)} spent today
+`);
+    console.log('fit score');
+    const buckets = new Map<string, number>();
+    for (const m of matches) {
+      const b = m.fit_score >= 80 ? '80-100' : m.fit_score >= 70 ? '70-79'
+        : m.fit_score >= 50 ? '50-69' : m.fit_score >= 25 ? '25-49' : '0-24';
+      buckets.set(b, (buckets.get(b) ?? 0) + 1);
+    }
+    for (const b of ['80-100', '70-79', '50-69', '25-49', '0-24']) {
+      console.log(bar(b, buckets.get(b) ?? 0, matches.length));
+    }
+
+    const worthSeeing = matches.filter((m) => m.fit_score >= threshold);
+    console.log(`
+${worthSeeing.length} at or above the notify threshold of ${threshold}
+`);
+
+    const titles = new Map<string, string>();
+    for (const r of all) titles.set(r.url, r.title);
+    console.log(`Top ${Math.min(limit, worthSeeing.length)} matches:
+`);
+    for (const m of worthSeeing.slice(0, limit)) {
+      const { data: l } = await db
+        .from('job_listings').select('title,company,location_suburb,distance_km,url')
+        .eq('id', m.listing_id).single();
+      const j = l as { title: string; company: string | null; location_suburb: string | null; distance_km: number | null; url: string };
+      console.log(`${String(m.fit_score).padStart(3)}  base ${String(m.base_score).padStart(3)} x${Number(m.preference_multiplier).toFixed(2)}  [${m.category}/${m.status}]  ${j.title}`);
+      console.log(`     ${j.company ?? '?'} · ${j.location_suburb ?? '?'}${j.distance_km !== null ? ` · ${Math.round(j.distance_km)}km` : ''}`);
+      console.log(`     ${m.reasoning}`);
+      console.log(`     ${j.url}
+`);
+    }
+  }
+
   // --- The actual listings -------------------------------------------------
   const show = (showAll ? all : passed).slice(0, limit);
   console.log(`Top ${show.length} by preference multiplier:\n`);
