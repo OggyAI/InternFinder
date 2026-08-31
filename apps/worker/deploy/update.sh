@@ -19,6 +19,25 @@ cd "$APP_DIR"
 
 echo "==> Current: $(git rev-parse --short HEAD) $(git log -1 --format=%s)"
 
+# `npm install` rewrites package-lock.json, so after the first deploy the VM has
+# a modified tracked file and `git pull --ff-only` refuses to run. The lockfile
+# is generated and the repo's copy is authoritative here, so discard it — but
+# only it. Anything ELSE modified on a deploy target is a human having edited
+# the server directly, which is worth stopping for rather than silently
+# throwing away.
+if ! git diff --quiet -- package-lock.json; then
+  echo "==> Discarding locally-regenerated package-lock.json"
+  git checkout -- package-lock.json
+fi
+
+OTHER_CHANGES="$(git status --porcelain --untracked-files=no)"
+if [ -n "$OTHER_CHANGES" ]; then
+  echo "!! This checkout has local modifications beyond the lockfile:"
+  echo "$OTHER_CHANGES"
+  echo "!! Refusing to pull over them. Commit, stash, or discard them first."
+  exit 1
+fi
+
 echo "==> Pulling"
 git pull --ff-only
 
