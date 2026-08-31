@@ -177,6 +177,10 @@ export async function runScoring(options: ScoringOptions): Promise<ScoringStats>
     .from('job_listings')
     .select('id,title,company,location_suburb,distance_km,description,compensation,work_mode,commitment,role_type,duration_weeks,preference_multiplier')
     .eq('prefilter_status', 'passed')
+    // Never score a near-duplicate. It is the same job as its canonical, so
+    // the score would be the same answer bought twice — about 9% of passing
+    // listings, and 9% of the bill.
+    .is('duplicate_of', null)
     .order('preference_multiplier', { ascending: false })
     .limit(5000);
   if (passedError) throw new Error(`listing load failed: ${passedError.message}`);

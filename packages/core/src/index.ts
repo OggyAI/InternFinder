@@ -8,6 +8,7 @@ export * from './preferences';
 export * from './prefilter';
 export * from './dedupe';
 export * from './scoring';
+export * from './duplicates';
 export * from './supabase';
 export * from './filters';
 export { MELBOURNE_SUBURBS, SUBURB_ALIASES } from './data/melbourne-suburbs';

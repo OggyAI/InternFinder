@@ -20,6 +20,7 @@ import type { SourceAdapter } from './sources/types';
 import { ingest, type IngestStats } from './ingest';
 import { flagValue, hasFlag } from './cli';
 import { runScoring, spendAllowance } from './scoring-run';
+import { runDedupePass } from './dedupe-pass';
 
 /**
  * Worker entrypoint.
@@ -150,6 +151,24 @@ async function runCycle(cli: Cli): Promise<void> {
     // daily allowance. Skipping this made repeated dry runs invisible to the
     // quota guard while quietly spending the real budget.
     await recordPoll(source.name, { calls, ok: true });
+  }
+
+  // --- Mark near-duplicates -----------------------------------------------
+  // Before scoring, so a duplicate is recognised as one before we pay to score
+  // it. Never fatal: a failure here costs a duplicate notification, which is
+  // far cheaper than losing the cycle's ingest.
+  if (!cli.dryRun) {
+    try {
+      const dedupe = await runDedupePass();
+      if (dedupe.changed > 0) {
+        log.info(
+          `dedupe: ${dedupe.duplicates} of ${dedupe.examined} listings are near-duplicates ` +
+            `(${dedupe.changed} newly marked)`,
+        );
+      }
+    } catch (err) {
+      log.error(`dedupe: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   // --- Phase 2: score whatever the pre-filter let through -----------------
