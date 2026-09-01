@@ -10,11 +10,15 @@ import { runBot } from './telegram-bot';
  */
 
 let stopping = false;
+// Cancels the in-flight long poll so Ctrl-C is immediate rather than waiting
+// out the remaining 25 seconds.
+const shutdown = new AbortController();
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(signal, () => {
-    log.info(`${signal} received, stopping after the current long poll`);
+    log.info(`${signal} received, stopping`);
     stopping = true;
+    shutdown.abort();
   });
 }
 
-await runBot(() => stopping);
+await runBot(() => stopping, shutdown.signal);

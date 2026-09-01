@@ -11,6 +11,7 @@ import {
   type FilterSet,
   type NormalizedListing,
   type SourceName,
+  sleep,
   type SourceRow,
 } from '@intern-finder/core';
 import { adzunaAdapter } from './sources/adzuna';
@@ -292,9 +293,15 @@ async function main(): Promise<void> {
   }
 
   let stopping = false;
+  // Cancels the tick sleep and any in-flight Telegram long poll. Without it,
+  // SIGTERM sets the flag and the process then sits inside a 300-second timer
+  // until systemd gives up and SIGKILLs — which is what "Failed with result
+  // 'timeout'" in the journal means.
+  const shutdown = new AbortController();
   const stop = (signal: string) => {
     log.info(`${signal} received, finishing current cycle then exiting`);
     stopping = true;
+    shutdown.abort();
   };
   process.on('SIGINT', () => stop('SIGINT'));
   process.on('SIGTERM', () => stop('SIGTERM'));
@@ -304,7 +311,7 @@ async function main(): Promise<void> {
   // leave /pause unanswered for exactly as long as the thing you are trying to
   // stop keeps running. It also has to keep answering while is_paused is true,
   // or /resume could never be delivered.
-  const bot = runBot(() => stopping);
+  const bot = runBot(() => stopping, shutdown.signal);
 
   while (!stopping) {
     try {
@@ -315,7 +322,7 @@ async function main(): Promise<void> {
       log.error(`cycle failed: ${err instanceof Error ? err.message : String(err)}`);
     }
     if (stopping) break;
-    await new Promise((r) => setTimeout(r, env.WORKER_TICK_SECONDS * 1000));
+    await sleep(env.WORKER_TICK_SECONDS * 1000, shutdown.signal);
   }
 
   // The bot is mid-long-poll and can take up to 25s to notice; wait for it so

@@ -36,6 +36,20 @@ export class TelegramError extends Error {
   }
 }
 
+/**
+ * A request cancelled because the process is shutting down.
+ *
+ * Distinct from TelegramError so the bot loop can tell "we are stopping" from
+ * "Telegram is broken" — the second backs off and retries, the first must exit
+ * immediately or systemd kills us.
+ */
+export class AbortedError extends Error {
+  constructor(method: string) {
+    super(`${method}: aborted`);
+    this.name = 'AbortedError';
+  }
+}
+
 /** Telegram wraps every response in this envelope, success or failure. */
 const EnvelopeSchema = z.object({
   ok: z.boolean(),
@@ -98,7 +112,7 @@ async function call<T>(
   method: string,
   payload: Record<string, unknown>,
   schema: z.ZodType<T>,
-  opts: { timeoutMs?: number; attempts?: number } = {},
+  opts: { timeoutMs?: number; attempts?: number; signal?: AbortSignal } = {},
 ): Promise<T> {
   const timeoutMs = opts.timeoutMs ?? 15_000;
   const attempts = opts.attempts ?? 3;
@@ -106,9 +120,11 @@ async function call<T>(
   let lastError: TelegramError | null = null;
 
   for (let attempt = 1; attempt <= attempts; attempt++) {
+    if (opts.signal?.aborted) throw new AbortedError(method);
     try {
-      return await once(token, method, payload, schema, timeoutMs);
+      return await once(token, method, payload, schema, timeoutMs, opts.signal);
     } catch (err) {
+      if (err instanceof AbortedError) throw err;
       const tgError =
         err instanceof TelegramError
           ? err
@@ -135,9 +151,16 @@ async function once<T>(
   payload: Record<string, unknown>,
   schema: z.ZodType<T>,
   timeoutMs: number,
+  external?: AbortSignal,
 ): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  // Either the per-request timeout or a shutdown cancels the request. Without
+  // the second, SIGTERM waits out a 25-second long poll before the process can
+  // exit, and systemd eventually SIGKILLs it.
+  const signal = external
+    ? AbortSignal.any([controller.signal, external])
+    : controller.signal;
 
   let response: Response;
   try {
@@ -145,9 +168,10 @@ async function once<T>(
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(payload),
-      signal: controller.signal,
+      signal,
     });
   } catch (err) {
+    if (external?.aborted) throw new AbortedError(method);
     const message = err instanceof Error ? err.message : String(err);
     throw new TelegramError(
       controller.signal.aborted ? `${method} timed out after ${timeoutMs}ms` : message,
@@ -269,7 +293,7 @@ export async function answerCallbackQuery(
  */
 export async function getUpdates(
   token: string,
-  opts: { offset?: number; timeoutSeconds?: number } = {},
+  opts: { offset?: number; timeoutSeconds?: number; signal?: AbortSignal } = {},
 ): Promise<TelegramUpdate[]> {
   const timeoutSeconds = opts.timeoutSeconds ?? 25;
   return call(
@@ -282,7 +306,7 @@ export async function getUpdates(
     },
     z.array(UpdateSchema),
     // The socket must outlive the long poll itself, or every poll "times out".
-    { timeoutMs: (timeoutSeconds + 10) * 1000, attempts: 1 },
+    { timeoutMs: (timeoutSeconds + 10) * 1000, attempts: 1, signal: opts.signal },
   );
 }
 

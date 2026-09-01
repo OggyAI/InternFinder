@@ -1,4 +1,5 @@
 import {
+  AbortedError,
   COMMANDS,
   HELP_TEXT,
   answerCallbackQuery,
@@ -16,6 +17,7 @@ import {
   matchKeyboard,
   sendMessage,
   setMyCommands,
+  sleep,
   withDecision,
   type MatchDecision,
   type NotifiableMatch,
@@ -340,7 +342,10 @@ export function botContext(): Context | null {
  * Never throws: this runs alongside the poll loop, and a Telegram outage must
  * not take ingestion down with it.
  */
-export async function runBot(shouldStop: () => boolean): Promise<void> {
+export async function runBot(
+  shouldStop: () => boolean,
+  signal?: AbortSignal,
+): Promise<void> {
   const ctx = botContext();
   if (!ctx) {
     log.info('telegram: TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not set — bot disabled');
@@ -359,7 +364,7 @@ export async function runBot(shouldStop: () => boolean): Promise<void> {
 
   while (!shouldStop()) {
     try {
-      const updates = await getUpdates(ctx.token, { offset, timeoutSeconds: 25 });
+      const updates = await getUpdates(ctx.token, { offset, timeoutSeconds: 25, signal });
       consecutiveFailures = 0;
 
       for (const update of updates) {
@@ -374,12 +379,16 @@ export async function runBot(shouldStop: () => boolean): Promise<void> {
         }
       }
     } catch (err) {
+      // A cancelled poll means we are shutting down, not that Telegram broke.
+      // Backing off here would spend the systemd stop timeout doing nothing.
+      if (err instanceof AbortedError || shouldStop()) break;
+
       consecutiveFailures++;
       const message = err instanceof Error ? err.message : String(err);
       // Back off to a minute so a revoked token doesn't spin at full speed.
       const waitMs = Math.min(60_000, 2_000 * 2 ** Math.min(consecutiveFailures, 5));
       log.error(`telegram: poll failed (${consecutiveFailures}) — ${message}`);
-      await new Promise((r) => setTimeout(r, waitMs));
+      await sleep(waitMs, signal);
     }
   }
 

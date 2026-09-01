@@ -55,8 +55,16 @@ RestartSec=30s
 
 # Graceful stop: SIGTERM makes the loop finish its current cycle and exit, so a
 # restart never lands mid-upsert.
+#
+# 30s, reduced from 120s. The first deploy of the Telegram bot logged
+# "Failed with result 'timeout'" — SIGTERM set the stop flag, but the loop was
+# parked inside the WORKER_TICK_SECONDS timer and never looked at it, so
+# systemd waited the full timeout and then SIGKILLed. The sleep and the
+# Telegram long poll are both cancellable now and shutdown measures ~30ms, so
+# a stop that takes longer than 30 seconds means something is genuinely stuck
+# and killing it is the right answer.
 KillSignal=SIGTERM
-TimeoutStopSec=120
+TimeoutStopSec=30
 
 StandardOutput=journal
 StandardError=journal

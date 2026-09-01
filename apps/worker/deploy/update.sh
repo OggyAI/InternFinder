@@ -55,6 +55,24 @@ npx tsc -p tsconfig.json --noEmit
 echo "==> Checking environment and schema"
 npm run doctor
 
+# The unit file is version-controlled but installed by hand, so a change to it
+# would otherwise sit in the repo doing nothing while the box keeps running the
+# old one. Detect the drift and say so; installing it needs sudo and is a
+# heavier action than a restart, so it stays a deliberate step.
+UNIT_SRC="$APP_DIR/apps/worker/deploy/$SERVICE.service"
+UNIT_DST="/etc/systemd/system/$SERVICE.service"
+if [ -f "$UNIT_SRC" ] && ! diff -q "$UNIT_SRC" "$UNIT_DST" >/dev/null 2>&1; then
+  echo
+  echo "!! The systemd unit in the repo differs from the installed one:"
+  diff "$UNIT_DST" "$UNIT_SRC" | sed 's/^/     /' || true
+  echo
+  echo "   To apply it:"
+  echo "     sudo cp $UNIT_SRC $UNIT_DST"
+  echo "     sudo systemctl daemon-reload"
+  echo "   Continuing with the currently installed unit."
+  echo
+fi
+
 echo "==> Restarting $SERVICE"
 sudo systemctl restart "$SERVICE"
 sleep 3
