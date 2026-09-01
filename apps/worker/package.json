@@ -13,7 +13,8 @@
     "report": "tsx src/report.ts",
     "reprocess": "tsx src/reprocess.ts",
     "score": "tsx src/score.ts",
-    "dedupe": "tsx src/dedupe.ts"
+    "dedupe": "tsx src/dedupe.ts",
+    "notify": "tsx src/notify.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",

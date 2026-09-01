@@ -1,4 +1,6 @@
-import { getEnv, getServiceClient, hasAdzunaCreds, hasJoobleCreds } from '@intern-finder/core';
+import { getEnv, getMe, getServiceClient, hasAdzunaCreds, hasJoobleCreds } from '@intern-finder/core';
+import { collectPipelineStats } from './pipeline-stats';
+import { notificationsSentToday } from './notifier';
 
 /**
  * `npm run doctor` — is this environment actually ready to run?
@@ -177,11 +179,45 @@ async function main(): Promise<void> {
       );
     }
 
-    const { count: scored } = await db.from('matches').select('*', { count: 'exact', head: true });
-    const { count: passedCount } = await db
-      .from('job_listings').select('*', { count: 'exact', head: true }).eq('prefilter_status', 'passed');
-    const backlog = (passedCount ?? 0) - (scored ?? 0);
-    console.log(`  --   queue               ${scored ?? 0} scored, ${backlog} awaiting a score`);
+    // Shared with the Telegram /stats command so the two can never disagree.
+    // This used to be `passed - scored`, which stopped being true when
+    // near-duplicate suppression shipped: duplicates are `passed` but are
+    // deliberately never scored, leaving a phantom backlog that never cleared.
+    const pipeline = await collectPipelineStats();
+    console.log(
+      `  --   queue               ${pipeline.scored} scored, ${pipeline.awaitingScore} awaiting a score` +
+        (pipeline.duplicates ? ` (${pipeline.duplicates} near-duplicates excluded)` : ''),
+    );
+  }
+
+  // --- 4c. Telegram (Phase 3) ---------------------------------------------
+  if (missing.length === 0) {
+    console.log('\nTelegram');
+    const token = env.TELEGRAM_BOT_TOKEN;
+    const chatId = env.TELEGRAM_CHAT_ID;
+
+    if (!token || !chatId) {
+      console.log(
+        `  --   bot                 ${!token ? 'TELEGRAM_BOT_TOKEN' : 'TELEGRAM_CHAT_ID'} not set` +
+          ' — notifications and commands disabled',
+      );
+    } else {
+      try {
+        const me = await getMe(token);
+        console.log(`  ${tick(true)} bot token           valid, @${me.username ?? me.id}`);
+      } catch (err) {
+        problems++;
+        console.log(`  ${tick(false)} bot token           ${err instanceof Error ? err.message : err}`);
+      }
+      // Not verified by sending a message — doctor must stay side-effect free.
+      console.log(`  --   chat id             ${chatId} (${chatId.startsWith('-') ? 'group' : 'direct'})`);
+
+      const sentToday = await notificationsSentToday();
+      const { data: capRow } = await db
+        .from('app_settings').select('max_notifications_per_day').eq('id', 1).maybeSingle();
+      const cap = (capRow as { max_notifications_per_day: number } | null)?.max_notifications_per_day ?? 0;
+      console.log(`  --   notifications       ${sentToday} sent today of ${cap}/day`);
+    }
   }
 
   // --- 5. Security posture -------------------------------------------------

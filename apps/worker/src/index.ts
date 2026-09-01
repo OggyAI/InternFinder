@@ -21,6 +21,8 @@ import { ingest, type IngestStats } from './ingest';
 import { flagValue, hasFlag } from './cli';
 import { runScoring, spendAllowance } from './scoring-run';
 import { runDedupePass } from './dedupe-pass';
+import { runNotifier } from './notifier';
+import { runBot } from './telegram-bot';
 
 /**
  * Worker entrypoint.
@@ -175,6 +177,35 @@ async function runCycle(cli: Cli): Promise<void> {
   // Deliberately after every source, so one scoring pass covers the whole
   // cycle rather than one pass per source paying the cached-prefix cost twice.
   await scoreCycle(cli, settings);
+
+  // --- Phase 3: tell the human about anything worth seeing ----------------
+  await notifyCycle(cli);
+}
+
+/**
+ * Send the matches that cleared the threshold.
+ *
+ * Non-fatal, like scoring. The send queue is "scored at or above threshold and
+ * still `new`", so a failed send is retried next cycle rather than lost — and
+ * a Telegram outage must not stop the pipeline finding jobs.
+ */
+async function notifyCycle(cli: Cli): Promise<void> {
+  try {
+    const stats = await runNotifier({ dryRun: cli.dryRun });
+    if (stats.reason && stats.sent === 0 && stats.candidates === 0) {
+      log.debug(`notify: ${stats.reason}`);
+      return;
+    }
+    if (stats.candidates === 0) return;
+    log.info(
+      `notify: ${stats.sent}/${stats.candidates} sent` +
+        (stats.failed ? `, ${stats.failed} failed` : '') +
+        (stats.deferred ? `, ${stats.deferred} held for tomorrow` : '') +
+        (stats.reason ? ` (${stats.reason})` : ''),
+    );
+  } catch (err) {
+    log.error(`notify: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
 
 /**
@@ -268,6 +299,13 @@ async function main(): Promise<void> {
   process.on('SIGINT', () => stop('SIGINT'));
   process.on('SIGTERM', () => stop('SIGTERM'));
 
+  // The bot listens CONCURRENTLY with the poll loop, deliberately not awaited.
+  // A cycle can take minutes; a bot that only listened between cycles would
+  // leave /pause unanswered for exactly as long as the thing you are trying to
+  // stop keeps running. It also has to keep answering while is_paused is true,
+  // or /resume could never be delivered.
+  const bot = runBot(() => stopping);
+
   while (!stopping) {
     try {
       await runCycle(cli);
@@ -280,6 +318,9 @@ async function main(): Promise<void> {
     await new Promise((r) => setTimeout(r, env.WORKER_TICK_SECONDS * 1000));
   }
 
+  // The bot is mid-long-poll and can take up to 25s to notice; wait for it so
+  // systemd sees a clean exit rather than killing us on its stop timeout.
+  await bot;
   log.info('worker stopped');
 }
 
