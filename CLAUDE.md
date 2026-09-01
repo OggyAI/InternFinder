@@ -137,6 +137,19 @@ one call and is logged, not fatal.
   for other countries — without `hasAustralianSignal()` the US Jooble results
   would all have passed, because a Florida location resolves to no suburb and
   therefore to `distance_km = null`.
+- **Near-duplicates need fingerprint AND proximity, never fingerprint alone.**
+  "Senior Engineer / Halcyon Knights / Melbourne CBD" posted on three dates is
+  one job re-posted; "Service Desk Engineer / GPK Group" at Dandenong,
+  Knoxfield and Frankston on ONE date is three real vacancies. A date
+  comparison gets both backwards; distance gets both right. 5km radius.
+- **A location in the job TITLE still defeats duplicate detection.** "IT
+  support Intern" and "IT Support Intern - Melbourne" from the same company in
+  the same suburb hash differently and both survive. Stripping trailing
+  locations from titles was measured and REJECTED: it catches 14 more listings
+  but turns "Registrar - Family Violence, Melbourne" into "Registrar", which
+  would merge genuinely different roles. Wrongly merging hides a job
+  permanently; wrongly keeping one costs a duplicate notification. Prefer the
+  recoverable mistake.
 - **Never use `head: true` to test whether a table exists.** PostgREST answers
   a HEAD request for a missing table with a bodiless 404, so supabase-js
   returns `error: null` and `count: null` — identical to an empty table. This

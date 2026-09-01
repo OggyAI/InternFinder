@@ -89,6 +89,22 @@ async function main(): Promise<void> {
   );
 
   // --- Scored matches (Phase 2) --------------------------------------------
+  // Listings marked as near-duplicates of another. Their match rows are kept
+  // (nothing is deleted) but they must not appear twice in the ranking — the
+  // same Web Developer Intern showing up at 81 twice is what motivated this.
+  const duplicateIds = new Set<string>();
+  for (let off = 0; ; off += 1000) {
+    const { data, error } = await db
+      .from('job_listings')
+      .select('id')
+      .not('duplicate_of', 'is', null)
+      .range(off, off + 999);
+    if (error) break; // column absent until the migration is applied
+    const page = (data ?? []) as unknown as { id: string }[];
+    for (const r of page) duplicateIds.add(r.id);
+    if (page.length < 1000) break;
+  }
+
   const { data: matchData, count: matchCount } = await db
     .from('matches')
     .select('fit_score,base_score,preference_multiplier,category,status,reasoning,listing_id', { count: 'exact' })
@@ -98,10 +114,12 @@ async function main(): Promise<void> {
     .order('base_score', { ascending: false })
     .limit(2000);
 
-  const matches = (matchData ?? []) as unknown as {
+  const allMatches = (matchData ?? []) as unknown as {
     fit_score: number; base_score: number; preference_multiplier: number;
     category: string; status: string; reasoning: string; listing_id: string;
   }[];
+  const matches = allMatches.filter((m) => !duplicateIds.has(m.listing_id));
+  const hiddenAsDuplicate = allMatches.length - matches.length;
 
   if (matches.length > 0) {
     const { data: settingsRow } = await db
@@ -109,8 +127,11 @@ async function main(): Promise<void> {
     const st = settingsRow as { notify_score_threshold: number; scoring_spend_today: number } | null;
     const threshold = st?.notify_score_threshold ?? 70;
 
-    console.log(`${matchCount} scored, $${Number(st?.scoring_spend_today ?? 0).toFixed(4)} spent today
-`);
+    console.log(
+      `${matchCount} scored, $${Number(st?.scoring_spend_today ?? 0).toFixed(4)} spent today` +
+        (hiddenAsDuplicate ? `, ${hiddenAsDuplicate} hidden as near-duplicates` : '') +
+        '\n',
+    );
     console.log('fit score');
     const buckets = new Map<string, number>();
     for (const m of matches) {
