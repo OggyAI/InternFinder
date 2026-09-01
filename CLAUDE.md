@@ -77,7 +77,7 @@ broken by a future change.
 | Phase | State |
 |---|---|
 | 1 — schema, Adzuna/Jooble ingest, rule-based pre-filter | **done**, deployed and running on the VM |
-| 2 — Claude scoring, threshold promotion to `matches` | not started |
+| 2 — Claude scoring, threshold promotion to `matches` | **done**, running in the worker loop behind a spend ceiling |
 | 3 — Telegram bot, Next.js dashboard | not started |
 | 4 — Playwright career-page scraping | not started, optional |
 
