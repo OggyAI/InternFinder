@@ -1,6 +1,12 @@
-import { getEnv, getMe, getServiceClient, hasAdzunaCreds, hasJoobleCreds } from '@intern-finder/core';
-import { collectPipelineStats } from './pipeline-stats';
-import { notificationsSentToday } from './notifier';
+import {
+  collectPipelineStats,
+  getEnv,
+  getMe,
+  getServiceClient,
+  hasAdzunaCreds,
+  hasJoobleCreds,
+  notificationsSentToday,
+} from '@intern-finder/core';
 
 /**
  * `npm run doctor` — is this environment actually ready to run?

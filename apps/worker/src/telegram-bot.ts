@@ -3,6 +3,7 @@ import {
   COMMANDS,
   HELP_TEXT,
   answerCallbackQuery,
+  collectPipelineStats,
   decodeCallback,
   editMessageText,
   formatFilters,
@@ -23,7 +24,6 @@ import {
   type NotifiableMatch,
   type TelegramUpdate,
 } from '@intern-finder/core';
-import { collectPipelineStats } from './pipeline-stats';
 
 /**
  * The command and button side of the Telegram bot.

@@ -27,8 +27,19 @@ broken by a future change.
   Anthropic, Supabase. Never a literal, never a fallback default, never
   committed. `packages/core/src/env.ts` is the only place they are read.
 - **The service_role key never reaches the browser.**
-  `packages/core/src/supabase.ts` bypasses RLS and is worker-only. The Phase 3
-  dashboard gets its own anon-key client under `apps/web`.
+  `packages/core/src/supabase.ts` bypasses RLS. The dashboard reads the
+  database only from Server Components and Server Actions, so the key stays on
+  the server and the browser receives rendered HTML — never a Supabase client.
+  `apps/web/src/lib/data.ts` starts with `import 'server-only'`, which turns an
+  accidental import from a Client Component into a build error rather than a
+  bundle that ships the key.
+
+  This REPLACES the original plan of giving the dashboard an anon-key client.
+  That plan predates the current posture: RLS is default-deny and privileges
+  are revoked from `anon`, so an anon client reads nothing, and the policies
+  needed to change that would publish the whole pipeline to anyone holding a
+  key that ships inside the browser bundle. `doctor` asserts the anon key
+  reaches nothing; that assertion must stay true.
 - **Filters are editable at runtime.** Anything the user might want to tune —
   keywords, radius, weights, cadence, thresholds — is a database row read fresh
   on every poll. If a change would require a redeploy to take effect, it is
@@ -78,7 +89,7 @@ broken by a future change.
 |---|---|
 | 1 — schema, Adzuna/Jooble ingest, rule-based pre-filter | **done**, deployed and running on the VM |
 | 2 — Claude scoring, threshold promotion to `matches` | **done**, running in the worker loop behind a spend ceiling |
-| 3 — Telegram bot, Next.js dashboard | not started |
+| 3 — Telegram bot, Next.js dashboard | **done**. Bot runs in the worker; dashboard is server-rendered and password-gated |
 | 4 — Playwright career-page scraping | not started, optional |
 
 Adzuna is verified against live traffic and running under systemd every 6
@@ -150,6 +161,20 @@ one call and is logged, not fatal.
   would merge genuinely different roles. Wrongly merging hides a job
   permanently; wrongly keeping one costs a duplicate notification. Prefer the
   recoverable mistake.
+- **PostgREST caps every response at 1000 rows, whatever `.limit()` says.**
+  `/stats` tallied match statuses by pulling rows and counting them, so it
+  described only the oldest 1000 matches — all still `new`, because decisions
+  land on the newest. It reported "new 1000 · saved 0 · applied 0" on a phone
+  immediately after two decisions. Count with `{ count: 'exact', head: true }`
+  per value, or paginate with `.range()`. The round number is the tell.
+- **Next.js does not see the workspace-root `.env`.** It reads `.env` from its
+  own directory. Loading it inside `next.config.mjs` does NOT fix this: render
+  workers and the Edge middleware runtime are separate processes and do not
+  inherit a `process.env` mutated during config evaluation, so every page saw
+  `DASHBOARD_PASSWORD` as unset and the site correctly refused itself with a
+  503. `apps/web/scripts/with-env.mjs` loads the root file BEFORE starting
+  Next, so all three runtimes inherit it. On Vercel this does nothing — the
+  platform injects the variables.
 - **Never use `head: true` to test whether a table exists.** PostgREST answers
   a HEAD request for a missing table with a bodiless 404, so supabase-js
   returns `error: null` and `count: null` — identical to an empty table. This

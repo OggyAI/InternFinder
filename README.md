@@ -267,3 +267,67 @@ migration.
 ```bash
 npm run typecheck
 ```
+
+---
+
+## The dashboard (`apps/web`)
+
+A Next.js App Router dashboard: overview, matches with Applied/Save/Dismiss,
+rejection diagnostics, and runtime-editable filters and settings.
+
+```bash
+npm run web          # http://localhost:3000
+npm run web:build    # production build
+```
+
+`DASHBOARD_PASSWORD` gates the whole site. **Unset means every page returns
+503** — an unconfigured deployment stays shut rather than serving the database
+to whoever finds the URL. Generate one with:
+
+```bash
+openssl rand -base64 24
+```
+
+### How it reads the database
+
+Server-side only. Every query runs in a Server Component or a Server Action
+using the service-role key, and the browser receives rendered HTML — it never
+holds a Supabase client. `src/lib/data.ts` begins with `import 'server-only'`,
+so importing it from a Client Component fails the build instead of shipping the
+key to the browser.
+
+This is deliberately **not** the anon-key client the original plan called for.
+RLS is default-deny and privileges are revoked from `anon`, so an anon client
+reads nothing; the policies that would change that would publish the pipeline
+to anyone holding a key that ships inside the browser bundle.
+
+### Deploying to Vercel
+
+The worker stays on the Oracle VM — it is a continuous loop holding a 25-second
+Telegram long poll, which serverless cannot do. Only the dashboard goes to
+Vercel, and it talks to Supabase directly.
+
+1. Import the GitHub repo in Vercel.
+2. Set **Root Directory** to `apps/web`.
+3. Add these Environment Variables (Production and Preview):
+
+   | Variable | Value |
+   |---|---|
+   | `SUPABASE_URL` | same as the worker's |
+   | `SUPABASE_SERVICE_ROLE_KEY` | same as the worker's |
+   | `DASHBOARD_PASSWORD` | a long random string |
+
+   None of them are prefixed `NEXT_PUBLIC_`, and they must not be — that prefix
+   inlines a value into the browser bundle.
+4. Deploy, then open the URL and sign in.
+
+Preview deployments get the same environment, so treat a preview URL as just as
+sensitive as production.
+
+### Local development note
+
+Next reads `.env` from its own directory, but this repo keeps one `.env` at the
+workspace root. `apps/web/scripts/with-env.mjs` loads that file *before*
+starting Next so the server, the render workers and the Edge middleware runtime
+all inherit it. Loading it from `next.config.mjs` does not work — those are
+separate processes. On Vercel the wrapper finds no file and does nothing.

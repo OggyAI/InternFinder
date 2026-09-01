@@ -4,6 +4,7 @@ import {
   getServiceClient,
   log,
   matchKeyboard,
+  notificationsSentToday,
   sendMessage,
   TelegramError,
   type NotifiableMatch,
@@ -49,23 +50,6 @@ interface MatchRow {
     url: string;
     posted_date: string | null;
   } | null;
-}
-
-/** Notifications already sent in the current UTC day. The VM runs on UTC. */
-export async function notificationsSentToday(): Promise<number> {
-  const db = getServiceClient();
-  const since = new Date();
-  since.setUTCHours(0, 0, 0, 0);
-
-  const { count, error } = await db
-    .from('notification_log')
-    .select('id', { count: 'exact', head: true })
-    .eq('channel', 'telegram')
-    .eq('status', 'sent')
-    .gte('sent_at', since.toISOString());
-
-  if (error) throw new Error(`notification_log read failed: ${error.message}`);
-  return count ?? 0;
 }
 
 export async function runNotifier(opts: { dryRun?: boolean } = {}): Promise<NotifyStats> {

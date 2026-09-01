@@ -15,3 +15,7 @@ supabase/.temp/
 # Resume files are personal data - keep them out of git.
 resume/
 *.resume.txt
+
+# Next.js build output (apps/web)
+.next/
+next-env.d.ts

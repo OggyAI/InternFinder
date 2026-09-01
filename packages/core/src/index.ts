@@ -15,3 +15,4 @@ export * from './filters';
 export { MELBOURNE_SUBURBS, SUBURB_ALIASES } from './data/melbourne-suburbs';
 export * from './telegram';
 export * from './telegram-format';
+export * from './stats';

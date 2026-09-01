@@ -19,7 +19,12 @@
     "report": "npm run report --workspace @intern-finder/worker",
     "reprocess": "npm run reprocess --workspace @intern-finder/worker",
     "score": "npm run score --workspace @intern-finder/worker",
-    "dedupe": "npm run dedupe --workspace @intern-finder/worker"
+    "dedupe": "npm run dedupe --workspace @intern-finder/worker",
+    "web": "npm run dev --workspace @intern-finder/web",
+    "web:build": "npm run build --workspace @intern-finder/web",
+    "typecheck:web": "npm run typecheck --workspace @intern-finder/web",
+    "notify": "npm run notify --workspace @intern-finder/worker",
+    "bot": "npm run bot --workspace @intern-finder/worker"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

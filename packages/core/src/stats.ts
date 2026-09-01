@@ -1,9 +1,13 @@
-import { getServiceClient, type StatsSummary } from '@intern-finder/core';
-import { notificationsSentToday } from './notifier';
+import { getServiceClient } from './supabase';
+import type { StatsSummary } from './telegram-format';
 
 /**
- * One definition of "how is the pipeline doing", shared by `npm run doctor`
- * and the Telegram /stats command.
+ * One definition of "how is the pipeline doing", shared by `npm run doctor`,
+ * the Telegram /stats command and the dashboard overview.
+ *
+ * In core rather than in the worker because the dashboard needs the same
+ * numbers, and three implementations of "how many are awaiting a score" would
+ * disagree the moment one of them was updated.
  *
  * Shared because it was already drifting. doctor computed the scoring backlog
  * as `passed - scored`, which was right until near-duplicate suppression
@@ -111,4 +115,29 @@ export async function collectPipelineStats(): Promise<StatsSummary> {
     paused: settings?.is_paused ?? false,
     byStatus,
   };
+}
+
+/**
+ * Notifications already sent in the current UTC day. The VM runs on UTC, so
+ * this rolls at UTC midnight — the same boundary as the source call quotas and
+ * the scoring spend, deliberately, so "today" means one thing project-wide.
+ *
+ * Derived by counting log rows rather than kept as a counter column: a counter
+ * would drift the moment a send failed halfway through updating it, and the
+ * log is written anyway for diagnosis.
+ */
+export async function notificationsSentToday(): Promise<number> {
+  const db = getServiceClient();
+  const since = new Date();
+  since.setUTCHours(0, 0, 0, 0);
+
+  const { count, error } = await db
+    .from('notification_log')
+    .select('id', { count: 'exact', head: true })
+    .eq('channel', 'telegram')
+    .eq('status', 'sent')
+    .gte('sent_at', since.toISOString());
+
+  if (error) throw new Error(`notification_log read failed: ${error.message}`);
+  return count ?? 0;
 }
