@@ -13,6 +13,9 @@ import { notificationsSentToday } from './notifier';
  * no match row", and this is that.
  */
 
+/** The check constraint on matches.status, in the order /stats reads best. */
+const MATCH_STATUSES = ['new', 'notified', 'saved', 'applied', 'dismissed'] as const;
+
 /**
  * `head: true` is safe HERE and nowhere else in this project: these tables are
  * known to exist because the worker has already read from them. On a MISSING
@@ -83,14 +86,14 @@ export async function collectPipelineStats(): Promise<StatsSummary> {
     '*, job_listings!inner(id)',
   );
 
-  const { data: statusRows, error: statusError } = await db
-    .from('matches')
-    .select('status')
-    .limit(5000);
-  if (statusError) throw new Error(`matches status read failed: ${statusError.message}`);
+  // Counted per status rather than by pulling rows and tallying them.
+  // PostgREST caps a response at 1000 rows whatever `.limit()` says, so the
+  // tally silently described only the oldest 1000 matches — every one of them
+  // still `new`, which reported "new 1000 · saved 0 · applied 0" on a phone
+  // immediately after two decisions had been made.
   const byStatus: Record<string, number> = {};
-  for (const row of (statusRows ?? []) as unknown as { status: string }[]) {
-    byStatus[row.status] = (byStatus[row.status] ?? 0) + 1;
+  for (const status of MATCH_STATUSES) {
+    byStatus[status] = await countRows('matches', (q) => q.eq('status', status));
   }
 
   return {
