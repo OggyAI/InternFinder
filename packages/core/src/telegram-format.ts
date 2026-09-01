@@ -53,6 +53,44 @@ function truncate(text: string, limit: number): string {
   return `${(lastSpace > limit * 0.6 ? cut.slice(0, lastSpace) : cut).trimEnd()}…`;
 }
 
+const MONTHS = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
+
+/**
+ * '2026-08-19T13:26:32+00:00' -> '19 Aug 2026'.
+ *
+ * Providers return a full timestamp, and the time of day a recruiter clicked
+ * publish is not information. Returns the input unchanged if it will not parse,
+ * because a visible odd string beats silently dropping the date.
+ */
+export function formatPostedDate(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return `${date.getUTCDate()} ${MONTHS[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
+}
+
+/** 'https://www.adzuna.com.au/details/123?utm_source=x' -> 'adzuna.com.au'. */
+export function linkHost(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return 'the listing';
+  }
+}
+
+/**
+ * Truncate text that has ALREADY been HTML-escaped.
+ *
+ * Cutting at an arbitrary index can land inside an entity and leave `&a` or
+ * `&lt`, which Telegram parses as broken markup. Drop any trailing partial
+ * entity after the cut.
+ */
+function truncateEscaped(escaped: string, limit: number): string {
+  return truncate(escaped, limit).replace(/&[a-z]{0,4}$/i, '');
+}
+
 const LABELS: Record<string, string> = {
   full_time: 'full-time',
   part_time: 'part-time',
@@ -88,6 +126,22 @@ function placeLine(m: NotifiableMatch): string {
 }
 
 /**
+ * The score, shown as the arithmetic that produced it.
+ *
+ * `fit_score` is clamped to 100, so a strong match with a favourable weighting
+ * saturates: 88 x 1.20 is 106, displayed as 100. Printing "88 resume match x
+ * 1.20 preference" beneath a score of 100 shows a sum that does not equal the
+ * number above it, which reads as a bug in the scoring rather than a ceiling.
+ * When it saturates, say so.
+ */
+export function scoreExplanation(m: NotifiableMatch): string {
+  const multiplier = Number(m.preferenceMultiplier);
+  const raw = Math.round(m.baseScore * multiplier);
+  const base = `${m.baseScore} resume match × ${multiplier.toFixed(2)} preference`;
+  return raw > 100 ? `${base} = ${raw}, capped at 100` : base;
+}
+
+/**
  * One match, as a Telegram message body.
  *
  * The score breakdown is shown rather than just the final number because the
@@ -108,15 +162,19 @@ export function formatMatch(m: NotifiableMatch): string {
   const facts = factsLine(m);
   if (facts) lines.push(`💼 ${escapeHtml(facts)}`);
 
-  const reasoning = truncate(m.reasoning, MAX_REASONING_CHARS);
-  if (reasoning) lines.push(`\n${escapeHtml(reasoning)}`);
+  const tail: string[] = [`\n<i>${scoreExplanation(m)}</i>`];
+  if (m.postedDate) tail.push(`<i>posted ${escapeHtml(formatPostedDate(m.postedDate))}</i>`);
+  tail.push(`\n<a href="${escapeHtml(m.url)}">Open on ${escapeHtml(linkHost(m.url))} →</a>`);
 
-  const multiplier = Number(m.preferenceMultiplier).toFixed(2);
-  lines.push(`\n<i>${m.baseScore} resume match × ${multiplier} preference</i>`);
-  if (m.postedDate) lines.push(`<i>posted ${escapeHtml(m.postedDate)}</i>`);
-  lines.push(`\n${escapeHtml(m.url)}`);
+  // The reasoning absorbs the length budget, never the markup. Truncating the
+  // assembled string instead would eventually cut through the closing </a> and
+  // Telegram rejects malformed HTML with a 400 — dropping the whole
+  // notification rather than shortening it.
+  const fixedLength = [...lines, ...tail].join('\n').length;
+  const budget = Math.min(MAX_REASONING_CHARS, MAX_MESSAGE_CHARS - fixedLength - 8);
+  const reasoning = budget > 0 ? truncateEscaped(escapeHtml(m.reasoning), budget) : '';
 
-  return truncate(lines.join('\n'), MAX_MESSAGE_CHARS);
+  return [...lines, ...(reasoning ? [`\n${reasoning}`] : []), ...tail].join('\n');
 }
 
 // --- Callback data ---------------------------------------------------------

@@ -7,6 +7,7 @@ import {
   formatFilters,
   formatHistory,
   formatMatch,
+  formatPostedDate,
   formatStats,
   matchKeyboard,
   withDecision,
@@ -102,6 +103,72 @@ describe('formatMatch', () => {
     expect(text).toContain('Cyber Security Intern');
     expect(text).toContain(base.url);
     expect(text).not.toContain('📍');
+  });
+});
+
+describe('score explanation', () => {
+  it('spells out the cap when the multiplier saturates the score', () => {
+    // Live example: base 88, x1.20 -> 106, stored as 100. Printing
+    // "88 x 1.20" under a score of 100 shows arithmetic that does not equal
+    // the number above it, which reads as a scoring bug.
+    const text = formatMatch({ ...base, fitScore: 100, baseScore: 88, preferenceMultiplier: 1.2 });
+    expect(text).toContain('88 resume match × 1.20 preference = 106, capped at 100');
+  });
+
+  it('stays quiet when nothing was capped', () => {
+    const text = formatMatch({ ...base, fitScore: 92, baseScore: 71, preferenceMultiplier: 1.3 });
+    expect(text).toContain('71 resume match × 1.30 preference');
+    expect(text).not.toContain('capped');
+  });
+});
+
+describe('posted date', () => {
+  it('renders a provider timestamp as a readable date', () => {
+    expect(formatPostedDate('2026-08-19T13:26:32+00:00')).toBe('19 Aug 2026');
+  });
+
+  it('passes through anything it cannot parse rather than dropping it', () => {
+    expect(formatPostedDate('sometime last week')).toBe('sometime last week');
+  });
+
+  it('reaches the message', () => {
+    expect(formatMatch({ ...base, postedDate: '2026-08-19T13:26:32+00:00' })).toContain(
+      'posted 19 Aug 2026',
+    );
+    expect(formatMatch(base)).not.toContain('T13:26');
+  });
+});
+
+describe('listing link', () => {
+  it('labels the link with the host instead of dumping a utm-laden URL', () => {
+    const text = formatMatch({
+      ...base,
+      url: 'https://www.adzuna.com.au/details/5847761609?utm_medium=api&utm_source=f2007c7b',
+    });
+    expect(text).toContain('Open on adzuna.com.au');
+    // & inside an attribute has to be an entity or Telegram rejects the markup.
+    expect(text).toContain('utm_medium=api&amp;utm_source=f2007c7b');
+  });
+
+  it('keeps the anchor intact when reasoning is enormous', () => {
+    // Truncating the assembled string would eventually cut through </a>, and
+    // Telegram answers malformed HTML with a 400 — dropping the notification
+    // entirely rather than shortening it.
+    const text = formatMatch({ ...base, reasoning: 'relevant experience. '.repeat(3000) });
+    expect(text.length).toBeLessThanOrEqual(MAX_MESSAGE_CHARS);
+    expect((text.match(/<a /g) ?? []).length).toBe(1);
+    expect((text.match(/<\/a>/g) ?? []).length).toBe(1);
+    expect(text.endsWith('</a>')).toBe(true);
+  });
+
+  it('never leaves a half-written HTML entity at the cut', () => {
+    const text = formatMatch({ ...base, reasoning: 'R&D '.repeat(4000) });
+    expect(text).not.toMatch(/&[a-z]{0,4}$/);
+    expect(text).not.toMatch(/&[a-z]{1,4}\n/);
+  });
+
+  it('falls back to a neutral label for an unparseable url', () => {
+    expect(formatMatch({ ...base, url: 'not a url' })).toContain('Open on the listing');
   });
 });
 
