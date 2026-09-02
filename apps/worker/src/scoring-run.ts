@@ -55,7 +55,36 @@ export interface ScoringStats {
   failedBatches: number;
   retries: number;
   stoppedOnBudget: boolean;
+  /** Set when the run aborted for a reason no retry can fix. */
+  stoppedOnAccountError?: string;
   distribution: Record<string, number>;
+}
+
+/**
+ * Does this failure mean "your account cannot make this call", rather than
+ * "this particular request went wrong"?
+ *
+ * Retrying an account-level failure cannot succeed, so the only thing more
+ * attempts buy is noise and rate-limit consumption.
+ */
+export function isAccountLevelFailure(message: string): boolean {
+  return /credit balance is too low|insufficient[_ ]quota|billing|payment required|401|authentication_error|invalid x-api-key|permission_error|403/i.test(
+    message,
+  );
+}
+
+/** The human-readable half of an account failure, without the JSON envelope. */
+export function summariseAccountFailure(message: string): string {
+  if (/credit balance is too low/i.test(message)) {
+    return 'Anthropic credit balance is exhausted — top up to resume scoring';
+  }
+  if (/401|authentication_error|invalid x-api-key/i.test(message)) {
+    return 'ANTHROPIC_API_KEY was rejected';
+  }
+  if (/403|permission_error/i.test(message)) {
+    return 'Anthropic API key lacks permission for this model';
+  }
+  return message.slice(0, 160);
 }
 
 interface Row {
@@ -271,7 +300,24 @@ export async function runScoring(options: ScoringOptions): Promise<ScoringStats>
       parsed = await scoreBatch(client, env.ANTHROPIC_MODEL, rubric, scorable, stats);
     } catch (err) {
       stats.failedBatches++;
-      log.error(`scoring: batch failed — ${err instanceof Error ? err.message : String(err)}`);
+      const message = err instanceof Error ? err.message : String(err);
+
+      // Some failures are about the ACCOUNT, not the batch, and every
+      // remaining batch will fail identically. Exhausted credits produced 53
+      // doomed requests and 53 identical error lines in a single cycle — and
+      // would have done so again every cycle, forever, until someone noticed.
+      // Stop at the first one and say why, the same way the notifier stops on
+      // a rejected Telegram token.
+      if (isAccountLevelFailure(message)) {
+        stats.stoppedOnAccountError = message;
+        log.error(
+          `scoring: stopping — ${summariseAccountFailure(message)} ` +
+            `(${queue.length - i} listings left; they keep until this is fixed)`,
+        );
+        break;
+      }
+
+      log.error(`scoring: batch failed — ${message}`);
       continue;
     }
 

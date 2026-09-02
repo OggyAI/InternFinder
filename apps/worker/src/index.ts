@@ -256,6 +256,13 @@ async function scoreCycle(
       log.info('scoring: nothing new to score');
       return;
     }
+    if (stats.stoppedOnAccountError) {
+      // Already logged with a readable summary inside runScoring. Nothing more
+      // to say here — and crucially the queue is untouched, so it resumes on
+      // its own once the account is fixed.
+      return;
+    }
+
     const notifiable =
       (stats.distribution['80-100'] ?? 0) + (stats.distribution['70-79'] ?? 0);
     log.info(
