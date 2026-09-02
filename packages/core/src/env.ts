@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+import path from 'node:path';
 import { config as loadDotenv } from 'dotenv';
 import { z } from 'zod';
 
@@ -12,12 +14,33 @@ import { z } from 'zod';
  * worker must be able to boot and poll without them.
  */
 
-// Walk up from the worker's cwd so a single .env at the repo root serves both
-// the worker and (later) the Next.js app.
-loadDotenv({ path: process.env.DOTENV_PATH ?? findRepoEnv() });
+// One .env at the repo root serves the worker and the dashboard alike.
+const repoEnv = process.env.DOTENV_PATH ?? findRepoEnv();
+loadDotenv(repoEnv ? { path: repoEnv } : {});
 
-function findRepoEnv(): string {
-  return new URL('../../../.env', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
+/**
+ * Locate the repo-root .env by walking up from the working directory.
+ *
+ * Deliberately NOT `new URL('../../../.env', import.meta.url)`. Webpack treats
+ * that exact form as an ASSET REFERENCE and tries to resolve the target at
+ * BUILD time, so the Next build died with "Module not found: Can't resolve
+ * '../../../.env'" on Vercel, where no .env file exists. It passed locally
+ * only because the file happened to be there — the bug was invisible on every
+ * machine that had one.
+ *
+ * Returns undefined when there is no file, which is the normal case on Vercel:
+ * the platform injects real environment variables and dotenv has nothing to do.
+ */
+function findRepoEnv(): string | undefined {
+  let dir = process.cwd();
+  for (let depth = 0; depth < 6; depth++) {
+    const candidate = path.join(dir, '.env');
+    if (existsSync(candidate)) return candidate;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return undefined;
 }
 
 const EnvSchema = z.object({

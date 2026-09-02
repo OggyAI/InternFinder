@@ -173,6 +173,13 @@ one call and is logged, not fatal.
   land on the newest. It reported "new 1000 · saved 0 · applied 0" on a phone
   immediately after two decisions. Count with `{ count: 'exact', head: true }`
   per value, or paginate with `.range()`. The round number is the tell.
+- **`new URL('...', import.meta.url)` is webpack ASSET syntax, not a path
+  helper.** `env.ts` located the repo-root `.env` that way. Webpack resolves
+  that form at BUILD time, so the Vercel build failed with `Module not found:
+  Can't resolve '../../../.env'` — while every local build passed, because a
+  `.env` was sitting there to be found. A bug only visible where the file is
+  absent. Walk up from `process.cwd()` instead, and test a build with the
+  `.env` moved aside.
 - **Next.js does not see the workspace-root `.env`.** It reads `.env` from its
   own directory. Loading it inside `next.config.mjs` does NOT fix this: render
   workers and the Edge middleware runtime are separate processes and do not
