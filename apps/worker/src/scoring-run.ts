@@ -33,6 +33,14 @@ export interface ScoringOptions {
   /** Re-score listings that already have a match row. */
   rescore?: boolean;
   /**
+   * Aborted on SIGTERM. Checked between batches, which is the only safe place
+   * to stop: a batch that has been paid for but not written would be re-scored
+   * and paid for twice. Without this a restart during a long backlog run sat
+   * inside an Anthropic request until systemd's stop timeout expired and
+   * SIGKILLed the worker.
+   */
+  signal?: AbortSignal;
+  /**
    * Called after each batch. Exists because moving the engine out of the CLI
    * silently removed its per-batch logging, leaving a forty-batch run with no
    * output for ten minutes — indistinguishable from a hang.
@@ -145,6 +153,32 @@ export async function recordSpend(usd: number, now = new Date()): Promise<void> 
   if (writeError) throw new Error(`spend write failed: ${writeError.message}`);
 }
 
+/**
+ * Read an entire table through PostgREST, which will not return more than 1000
+ * rows in a single response no matter what `.limit()` says. Pages with
+ * `.range()` until a short page arrives.
+ *
+ * The caller must apply a deterministic ordering, or rows can repeat or be
+ * skipped between pages.
+ */
+async function fetchAllRows<T>(
+  table: 'job_listings' | 'matches',
+  build: (query: any) => any,
+): Promise<T[]> {
+  const db = getServiceClient();
+  const PAGE = 1000;
+  const rows: T[] = [];
+
+  for (let offset = 0; ; offset += PAGE) {
+    const { data, error } = await build(db.from(table)).range(offset, offset + PAGE - 1);
+    if (error) throw new Error(`${table} load failed: ${error.message}`);
+    const page = (data ?? []) as T[];
+    rows.push(...page);
+    if (page.length < PAGE) break;
+  }
+  return rows;
+}
+
 export async function runScoring(options: ScoringOptions): Promise<ScoringStats> {
   const env = getEnv();
   const db = getServiceClient();
@@ -173,24 +207,33 @@ export async function runScoring(options: ScoringOptions): Promise<ScoringStats>
   // PostgREST has no NOT EXISTS, so the anti-join happens here. Deriving the
   // queue from the ABSENCE of a match row (rather than a cursor) is what makes
   // a failed batch self-healing: those listings simply reappear next run.
-  const { data: passedData, error: passedError } = await db
-    .from('job_listings')
-    .select('id,title,company,location_suburb,distance_km,description,compensation,work_mode,commitment,role_type,duration_weeks,preference_multiplier')
-    .eq('prefilter_status', 'passed')
-    // Never score a near-duplicate. It is the same job as its canonical, so
-    // the score would be the same answer bought twice — about 9% of passing
-    // listings, and 9% of the bill.
-    .is('duplicate_of', null)
-    .order('preference_multiplier', { ascending: false })
-    .limit(5000);
-  if (passedError) throw new Error(`listing load failed: ${passedError.message}`);
+  //
+  // Both halves MUST paginate. PostgREST caps a response at 1000 rows whatever
+  // `.limit()` asks for, and with `.limit(5000)` / `.limit(10000)` this failed
+  // in two expensive ways at once: only the top 1000 listings by preference
+  // were ever candidates (736 passing listings were invisible to scoring and
+  // the backlog could never drain), and only 1000 of the 1501 existing match
+  // rows were recognised, so listings that had already been scored looked
+  // unscored and were paid for a second time.
+  const passed = await fetchAllRows<Row>('job_listings', (query) =>
+    query
+      .select('id,title,company,location_suburb,distance_km,description,compensation,work_mode,commitment,role_type,duration_weeks,preference_multiplier')
+      .eq('prefilter_status', 'passed')
+      // Never score a near-duplicate. It is the same job as its canonical, so
+      // the score would be the same answer bought twice — about 9% of passing
+      // listings, and 9% of the bill.
+      .is('duplicate_of', null)
+      .order('preference_multiplier', { ascending: false })
+      // A stable tiebreak, or rows can repeat or vanish across pages when many
+      // share a multiplier.
+      .order('id', { ascending: true }),
+  );
 
-  const { data: scoredData, error: scoredError } = await db
-    .from('matches').select('listing_id').limit(10000);
-  if (scoredError) throw new Error(`matches load failed: ${scoredError.message}`);
+  const scoredRows = await fetchAllRows<{ listing_id: string }>('matches', (query) =>
+    query.select('listing_id').order('listing_id', { ascending: true }),
+  );
 
-  const alreadyScored = new Set((scoredData ?? []).map((m) => (m as { listing_id: string }).listing_id));
-  const passed = (passedData ?? []) as unknown as Row[];
+  const alreadyScored = new Set(scoredRows.map((m) => m.listing_id));
   let queue = options.rescore ? passed : passed.filter((r) => !alreadyScored.has(r.id));
   if (options.limit != null && queue.length > options.limit) queue = queue.slice(0, options.limit);
   stats.queued = queue.length;
@@ -200,6 +243,17 @@ export async function runScoring(options: ScoringOptions): Promise<ScoringStats>
   const rubric = buildRubric(resume.content);
 
   for (let i = 0; i < queue.length; i += options.batchSize) {
+    // Stop cleanly on shutdown. The queue is derived from listings that have
+    // no match row, so whatever is left is simply picked up next start —
+    // nothing is lost by stopping here.
+    if (options.signal?.aborted) {
+      log.info(
+        `scoring: shutdown requested after ${stats.scored} listings; ` +
+          `${queue.length - i} left for the next run`,
+      );
+      break;
+    }
+
     // Checked BEFORE each batch, so the ceiling is honoured with an overshoot
     // of at most one batch rather than being discovered after the fact.
     if (stats.costUsd >= options.budgetUsd) {

@@ -162,6 +162,12 @@ one call and is logged, not fatal.
   permanently; wrongly keeping one costs a duplicate notification. Prefer the
   recoverable mistake.
 - **PostgREST caps every response at 1000 rows, whatever `.limit()` says.**
+  This has now bitten three times, twice expensively. The scoring queue asked
+  for `.limit(5000)` listings and `.limit(10000)` match rows and got 1000 of
+  each: 736 passing listings were invisible to scoring so the backlog could
+  never drain, and 501 already-scored listings looked unscored and were paid
+  for twice. Anything that reads a whole table must paginate with `.range()`
+  AND order deterministically, or rows repeat or vanish between pages.
   `/stats` tallied match statuses by pulling rows and counting them, so it
   described only the oldest 1000 matches — all still `new`, because decisions
   land on the newest. It reported "new 1000 · saved 0 · applied 0" on a phone

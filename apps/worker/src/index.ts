@@ -85,7 +85,7 @@ function remainingCalls(source: SourceRow, now: Date): number {
   return Math.max(0, source.max_calls_per_day - used);
 }
 
-async function runCycle(cli: Cli): Promise<void> {
+async function runCycle(cli: Cli, signal?: AbortSignal): Promise<void> {
   const now = new Date();
 
   const settings = await loadAppSettings();
@@ -105,6 +105,10 @@ async function runCycle(cli: Cli): Promise<void> {
   const wanted = cli.sources ?? sources.map((s) => s.name);
 
   for (const source of sources) {
+    if (signal?.aborted) {
+      log.info('shutdown requested — skipping remaining sources');
+      return;
+    }
     if (!wanted.includes(source.name)) continue;
 
     const adapter = adapterFor(source.name, cli.fixtures);
@@ -174,13 +178,19 @@ async function runCycle(cli: Cli): Promise<void> {
     }
   }
 
+  // --- Phase 3: tell the human about anything worth seeing ----------------
+  // BEFORE scoring, deliberately. Scoring can run for minutes clearing a
+  // backlog, and when it was last it never got there: a restart mid-scoring
+  // killed the cycle and the matches sat unsent. Notifying first means alerts
+  // depend only on what is already scored, so they go out on time no matter
+  // how long scoring takes or whether it finishes at all. Anything scored in
+  // THIS cycle goes out on the next tick, minutes later.
+  await notifyCycle(cli);
+
   // --- Phase 2: score whatever the pre-filter let through -----------------
   // Deliberately after every source, so one scoring pass covers the whole
   // cycle rather than one pass per source paying the cached-prefix cost twice.
-  await scoreCycle(cli, settings);
-
-  // --- Phase 3: tell the human about anything worth seeing ----------------
-  await notifyCycle(cli);
+  await scoreCycle(cli, settings, signal);
 }
 
 /**
@@ -217,7 +227,11 @@ async function notifyCycle(cli: Cli): Promise<void> {
  * is derived from listings that have no match row and therefore survives
  * indefinitely until scoring works again.
  */
-async function scoreCycle(cli: Cli, settings: AppSettingsRow): Promise<void> {
+async function scoreCycle(
+  cli: Cli,
+  settings: AppSettingsRow,
+  signal?: AbortSignal,
+): Promise<void> {
   if (!settings.scoring_enabled) {
     log.debug('scoring: disabled in app_settings, skipping');
     return;
@@ -235,6 +249,7 @@ async function scoreCycle(cli: Cli, settings: AppSettingsRow): Promise<void> {
       budgetUsd: allowed,
       batchSize: settings.scoring_batch_size,
       dryRun: cli.dryRun,
+      signal,
     });
 
     if (stats.queued === 0) {
@@ -315,7 +330,7 @@ async function main(): Promise<void> {
 
   while (!stopping) {
     try {
-      await runCycle(cli);
+      await runCycle(cli, shutdown.signal);
     } catch (err) {
       // A bad cycle must never kill the loop — systemd would restart us into
       // the same failure. Log it and wait for the next tick.

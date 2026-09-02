@@ -69,7 +69,7 @@ export async function collectPipelineStats(): Promise<StatsSummary> {
     .from('app_settings')
     .select(
       'notify_score_threshold,max_notifications_per_day,is_paused,' +
-        'scoring_spend_today,max_scoring_spend_usd_per_day',
+        'scoring_spend_today,max_scoring_spend_usd_per_day,scoring_spend_reset_at',
     )
     .eq('id', 1)
     .maybeSingle();
@@ -80,7 +80,16 @@ export async function collectPipelineStats(): Promise<StatsSummary> {
     is_paused: boolean;
     scoring_spend_today: number;
     max_scoring_spend_usd_per_day: number;
+    scoring_spend_reset_at: string;
   } | null;
+
+  // The stored total is stale until the next write. spendAllowance() treats it
+  // as zero once the reset timestamp has passed, and this has to agree: on the
+  // morning after a day that hit the ceiling, reading the raw column reports
+  // "$2.01 of $2.00 spent" while the worker is correctly spending freely.
+  const spendWindowExpired =
+    settings !== null && new Date() >= new Date(settings.scoring_spend_reset_at);
+  const spentToday = spendWindowExpired ? 0 : Number(settings?.scoring_spend_today ?? 0);
 
   const threshold = settings?.notify_score_threshold ?? 70;
 
@@ -108,7 +117,7 @@ export async function collectPipelineStats(): Promise<StatsSummary> {
     awaitingScore: Math.max(0, scorable - scoredScorable),
     aboveThreshold,
     threshold,
-    spentToday: Number(settings?.scoring_spend_today ?? 0),
+    spentToday,
     spendCapPerDay: Number(settings?.max_scoring_spend_usd_per_day ?? 0),
     notifiedToday: await notificationsSentToday(),
     notifyCapPerDay: settings?.max_notifications_per_day ?? 0,
