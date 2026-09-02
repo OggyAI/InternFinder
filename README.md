@@ -282,10 +282,11 @@ npm run web:build    # production build
 
 `DASHBOARD_PASSWORD` gates the whole site. **Unset means every page returns
 503** — an unconfigured deployment stays shut rather than serving the database
-to whoever finds the URL. Generate one with:
+to whoever finds the URL. Generate one with Node, which this repo already
+requires (`openssl` is not present on a default Windows install):
 
 ```bash
-openssl rand -base64 24
+node -e "console.log(require('crypto').randomBytes(24).toString('base64'))"
 ```
 
 ### How it reads the database
@@ -316,6 +317,11 @@ Vercel, and it talks to Supabase directly.
    | `SUPABASE_URL` | same as the worker's |
    | `SUPABASE_SERVICE_ROLE_KEY` | same as the worker's |
    | `DASHBOARD_PASSWORD` | a long random string |
+
+   Scope all three to **Production and Preview**. Skip *Development* — that
+   scope only feeds `vercel dev`, and local work reads the root `.env` instead.
+   Mark the service-role key and the password **Sensitive** so they cannot be
+   read back afterwards.
 
    None of them are prefixed `NEXT_PUBLIC_`, and they must not be — that prefix
    inlines a value into the browser bundle.
