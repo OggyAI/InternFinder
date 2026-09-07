@@ -1,4 +1,5 @@
 import {
+  preferIPv4,
   checkConnection,
   getEnv,
   isSourceDue,
@@ -24,6 +25,10 @@ import { runScoring, spendAllowance } from './scoring-run';
 import { runDedupePass } from './dedupe-pass';
 import { runNotifier } from './notifier';
 import { runBot } from './telegram-bot';
+
+// Must run before any network call. See packages/core/src/net.ts — Node's
+// Happy Eyeballs hangs on this VM's dead IPv6 route instead of falling back.
+preferIPv4();
 
 /**
  * Worker entrypoint.

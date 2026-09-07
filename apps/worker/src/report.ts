@@ -1,4 +1,8 @@
-import { getServiceClient } from '@intern-finder/core';
+import { getServiceClient, preferIPv4 } from '@intern-finder/core';
+
+// Must run before any network call. See packages/core/src/net.ts — Node's
+// Happy Eyeballs hangs on this VM's dead IPv6 route instead of falling back.
+preferIPv4();
 
 /**
  * `npm run report` — what is actually in job_listings.

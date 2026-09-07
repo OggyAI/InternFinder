@@ -1,5 +1,9 @@
-import { log } from '@intern-finder/core';
+import { log, preferIPv4 } from '@intern-finder/core';
 import { runBot } from './telegram-bot';
+
+// Must run before any network call. See packages/core/src/net.ts — Node's
+// Happy Eyeballs hangs on this VM's dead IPv6 route instead of falling back.
+preferIPv4();
 
 /**
  * `npm run bot` — the Telegram bot on its own, with no polling or scoring.

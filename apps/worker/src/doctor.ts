@@ -1,4 +1,5 @@
 import {
+  preferIPv4,
   collectPipelineStats,
   getEnv,
   getMe,
@@ -7,6 +8,10 @@ import {
   hasJoobleCreds,
   notificationsSentToday,
 } from '@intern-finder/core';
+
+// Must run before any network call. See packages/core/src/net.ts — Node's
+// Happy Eyeballs hangs on this VM's dead IPv6 route instead of falling back.
+preferIPv4();
 
 /**
  * `npm run doctor` — is this environment actually ready to run?

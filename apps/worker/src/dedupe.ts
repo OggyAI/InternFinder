@@ -1,6 +1,10 @@
-import { log } from '@intern-finder/core';
+import { log, preferIPv4 } from '@intern-finder/core';
 import { hasFlag } from './cli';
 import { runDedupePass } from './dedupe-pass';
+
+// Must run before any network call. See packages/core/src/net.ts — Node's
+// Happy Eyeballs hangs on this VM's dead IPv6 route instead of falling back.
+preferIPv4();
 
 /**
  * `npm run dedupe` — re-derive duplicate_of across every stored listing.

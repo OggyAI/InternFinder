@@ -1,6 +1,10 @@
-import { getServiceClient, log, AppSettingsRow } from '@intern-finder/core';
+import { getServiceClient, log, AppSettingsRow, preferIPv4 } from '@intern-finder/core';
 import { flagValue, hasFlag } from './cli';
 import { runScoring, spendAllowance } from './scoring-run';
+
+// Must run before any network call. See packages/core/src/net.ts — Node's
+// Happy Eyeballs hangs on this VM's dead IPv6 route instead of falling back.
+preferIPv4();
 
 /**
  * `npm run score` — the manual scoring entry point.

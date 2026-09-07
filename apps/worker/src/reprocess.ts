@@ -1,11 +1,16 @@
 import { hasFlag } from './cli';
 import {
+  preferIPv4,
   getServiceClient,
   loadActiveFilter,
   log,
   prefilterBatch,
   type NormalizedListing,
 } from '@intern-finder/core';
+
+// Must run before any network call. See packages/core/src/net.ts — Node's
+// Happy Eyeballs hangs on this VM's dead IPv6 route instead of falling back.
+preferIPv4();
 
 /**
  * `npm run reprocess` — re-run the pre-filter over listings already stored.
