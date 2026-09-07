@@ -120,8 +120,16 @@ export default async function FiltersPage() {
           <br />
           <select name="kind" defaultValue="include">
             <option value="include">include</option>
-            <option value="exclude">exclude (anywhere)</option>
-            <option value="exclude_title">exclude (title only)</option>
+            <option value="exclude">exclude</option>
+            <option value="exclude_work_rights">exclude (work rights)</option>
+          </select>
+        </label>
+        <label>
+          Match against
+          <br />
+          <select name="match_scope" defaultValue="text">
+            <option value="text">title + description</option>
+            <option value="title">title only</option>
           </select>
         </label>
         <label>

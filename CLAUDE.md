@@ -67,6 +67,18 @@ broken by a future change.
 - **'unknown' is a first-class value on every signal axis** and always scores
   neutral. A confident wrong guess is worse than an honest shrug, because
   Phase 2 hands the same text to Claude and will do better.
+- **The include gate matches the FIELD; it has no notion of LEVEL.** Measured
+  over 1,299 scored listings, only 11 (0.8%) reached the notify threshold and
+  69% scored under 25 — mostly Senior/Manager/Architect roles in exactly the
+  right domain. Seniority excludes are `match_scope: 'title'` on purpose:
+  "senior" appears in the body of countless junior ads ("reporting to a senior
+  engineer"), so matching the full text would reject real internships.
+- **A term with "zero good matches" is not evidence it is safe to exclude.**
+  The first cut of the pre-filter analysis produced ~37 such terms, including
+  `data`, `cloud`, `developer` and `software` — but with only 11 listings above
+  the threshold in the whole dataset, almost any term scores zero good hits by
+  chance. Justify an exclusion by reasoning about the role, then CHECK it
+  against the data; never let the data alone select the rule.
 - **Cost matters.** This loop runs continuously. Phase 2 uses **Sonnet, not
   Opus**, and batches sensibly. The rule-based pre-filter exists to keep listings
   away from the LLM, and its pass rate is a cost metric.

@@ -121,7 +121,10 @@ export async function addKeyword(formData: FormData): Promise<void> {
     .object({
       filterId: Uuid,
       term: z.string().trim().min(1).max(80),
-      kind: z.enum(['include', 'exclude', 'exclude_title']),
+      // The schema's CHECK allows exactly these three. Title scoping is a
+      // separate axis (match_scope), NOT a fourth kind — an 'exclude_title'
+      // kind would have been rejected by the constraint at insert time.
+      kind: z.enum(['include', 'exclude', 'exclude_work_rights']),
       category: z.enum(['domain', 'structural']).default('domain'),
       match_scope: z.enum(['text', 'title']).default('text'),
       whole_word: z.union([z.literal('on'), z.null()]).transform((v) => v === 'on'),
