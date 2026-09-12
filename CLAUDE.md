@@ -102,13 +102,26 @@ broken by a future change.
 | 1 — schema, Adzuna/Jooble ingest, rule-based pre-filter | **done**, deployed and running on the VM |
 | 2 — Claude scoring, threshold promotion to `matches` | **done**, running in the worker loop behind a spend ceiling |
 | 3 — Telegram bot, Next.js dashboard | **done**. Bot runs in the worker; dashboard is server-rendered and password-gated |
-| 4 — Playwright career-page scraping | not started, optional |
+| 4 — Career-page fetching | **paused by choice** — foundation built and tested, not wired into the loop |
 
 Adzuna is verified against live traffic and running under systemd every 6
 hours. Jooble is **not working**: its key returns a Cloudflare bot challenge,
 and an earlier US-region key returned Melbourne, Florida. The row stays
 enabled so it recovers by itself if the block lifts; each failed cycle costs
 one call and is logged, not fatal.
+
+Phase 4 is **paused, not blocked**. Built in `packages/core/src/careers/`: the
+denylist (job boards plus private and loopback addresses, fail-closed),
+robots.txt handling, the schema.org JobPosting reader, and
+`npm run careers:probe -- <url>`. Nothing in the worker calls it and the
+`careers_page` source stays disabled. The reason is measured, not a hunch
+(2026-09-12): the 168 matches scoring 50+ came from 120 different employers,
+roughly half of the best ones via recruiters Adzuna already carries, and none
+of 15 probed career index pages published JobPosting markup. Watching a
+handful of pages would add a few roles a month. Resume it when there are
+specific employers worth watching; the next increment is an ATS adapter —
+the Greenhouse and Lever public APIs were verified working, and Telstra runs
+on Workday. No headless browser: the VM has ~535MB free beside two bots.
 
 ## 5. Gotchas that have already bitten
 
