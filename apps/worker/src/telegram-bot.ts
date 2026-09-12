@@ -6,6 +6,7 @@ import {
   collectPipelineStats,
   decodeCallback,
   editMessageText,
+  escapeHtml,
   formatFilters,
   formatHistory,
   formatMatch,
@@ -21,9 +22,14 @@ import {
   sleep,
   withDecision,
   type MatchDecision,
-  type NotifiableMatch,
   type TelegramUpdate,
 } from '@intern-finder/core';
+import {
+  MATCH_CARD_SELECT,
+  loadNotifiableMatch,
+  toNotifiableMatch,
+  type MatchCardRow,
+} from './match-card';
 
 /**
  * The command and button side of the Telegram bot.
@@ -153,11 +159,7 @@ async function commandTop(ctx: Context, args: string): Promise<void> {
 
   const { data, error } = await db
     .from('matches')
-    .select(
-      'id,fit_score,base_score,preference_multiplier,category,compensation,work_mode,' +
-        'commitment,duration_weeks,reasoning,' +
-        'job_listings!inner(title,company,location_suburb,distance_km,url,posted_date)',
-    )
+    .select(MATCH_CARD_SELECT)
     .in('status', ['new', 'notified'])
     .is('job_listings.duplicate_of', null)
     .order('fit_score', { ascending: false })
@@ -165,45 +167,20 @@ async function commandTop(ctx: Context, args: string): Promise<void> {
     .limit(limit);
   if (error) throw new Error(error.message);
 
-  const rows = (data ?? []) as unknown as {
-    id: string; fit_score: number; base_score: number; preference_multiplier: number;
-    category: string; compensation: string; work_mode: string; commitment: string;
-    duration_weeks: number | null; reasoning: string;
-    job_listings: {
-      title: string; company: string | null; location_suburb: string | null;
-      distance_km: number | null; url: string; posted_date: string | null;
-    } | null;
-  }[];
+  const matches = ((data ?? []) as unknown as MatchCardRow[])
+    .map(toNotifiableMatch)
+    .filter((m): m is NonNullable<typeof m> => m !== null);
 
-  if (rows.length === 0) {
+  if (matches.length === 0) {
     await reply(ctx, 'Nothing undecided right now. /stats shows where the pipeline is.');
     return;
   }
 
-  for (const row of rows) {
-    const listing = row.job_listings!;
-    const match: NotifiableMatch = {
-      matchId: row.id,
-      fitScore: row.fit_score,
-      baseScore: row.base_score,
-      preferenceMultiplier: Number(row.preference_multiplier),
-      category: row.category,
-      compensation: row.compensation,
-      workMode: row.work_mode,
-      commitment: row.commitment,
-      durationWeeks: row.duration_weeks,
-      reasoning: row.reasoning,
-      title: listing.title,
-      company: listing.company,
-      locationSuburb: listing.location_suburb,
-      distanceKm: listing.distance_km === null ? null : Number(listing.distance_km),
-      url: listing.url,
-      postedDate: listing.posted_date,
-    };
+  for (const match of matches) {
     await sendMessage(ctx.token, {
       chatId: ctx.chatId,
       text: formatMatch(match),
-      keyboard: matchKeyboard(row.id),
+      keyboard: matchKeyboard(match.matchId),
     });
     await new Promise((r) => setTimeout(r, 400));
   }
@@ -228,7 +205,7 @@ async function handleCallback(
   ctx: Context,
   callbackId: string,
   data: string | undefined,
-  message: { message_id: number } | undefined,
+  message: { message_id: number; text?: string } | undefined,
 ): Promise<void> {
   const decoded = decodeCallback(data);
   if (!decoded) {
@@ -251,25 +228,39 @@ async function handleCallback(
 
   await answerCallbackQuery(ctx.token, callbackId, DECISION_TOAST[decoded.decision]);
 
-  if (message) {
-    const { data: logRow } = await db
-      .from('notification_log')
-      .select('payload')
-      .eq('telegram_message_id', message.message_id)
-      .order('sent_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    const original = (logRow as { payload: string | null } | null)?.payload;
-    if (original) {
-      // Buttons dropped: the decision is made, and leaving them invites a
-      // second tap that would silently overwrite the first.
-      await editMessageText(ctx.token, {
-        chatId: ctx.chatId,
-        messageId: message.message_id,
-        text: withDecision(original, decoded.decision),
-      });
-    }
+  if (!message) return;
+
+  // Redraw the card from the match row, NOT from what notification_log says
+  // was sent. Only the notifier logs its sends, so a card delivered by /top had
+  // no log row: the lookup came back empty and the edit was skipped silently,
+  // leaving live buttons on a match the database already called dismissed.
+  let card: string | null = null;
+  try {
+    const match = await loadNotifiableMatch(decoded.matchId);
+    if (match) card = formatMatch(match);
+  } catch (err) {
+    log.warn(
+      `callback: could not rebuild card for ${decoded.matchId} — ` +
+        `${err instanceof Error ? err.message : String(err)}`,
+    );
   }
+
+  // Last resort: the text Telegram returned with the tap. Plain text, so the
+  // bold and the link are lost, but a settled card beats live buttons.
+  if (!card && message.text) card = escapeHtml(message.text);
+
+  if (!card) {
+    log.warn(`callback: ${decoded.decision} saved for ${decoded.matchId} but the card could not be redrawn`);
+    return;
+  }
+
+  // Buttons dropped: the decision is made, and leaving them invites a second
+  // tap that would silently overwrite the first.
+  await editMessageText(ctx.token, {
+    chatId: ctx.chatId,
+    messageId: message.message_id,
+    text: withDecision(card, decoded.decision),
+  });
 }
 
 // --- Dispatch --------------------------------------------------------------

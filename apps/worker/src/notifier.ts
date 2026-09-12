@@ -7,13 +7,13 @@ import {
   notificationsSentToday,
   sendMessage,
   TelegramError,
-  type NotifiableMatch,
 } from '@intern-finder/core';
+import { MATCH_CARD_SELECT, toNotifiableMatch, type MatchCardRow } from './match-card';
 
 /**
  * Send the matches worth seeing, once each.
  *
- * Runs after scoring in every cycle. The queue is "scored at or above the
+ * Runs at the start of every cycle, before scoring. The queue is "scored at or above the
  * threshold and still `new`", which means it is derived from durable state
  * rather than from what happened during this run — a crashed cycle, a revoked
  * token or a week of downtime all resolve by simply running again.
@@ -29,27 +29,6 @@ export interface NotifyStats {
   /** Matches left unsent because the daily cap was reached. */
   deferred: number;
   reason?: string;
-}
-
-interface MatchRow {
-  id: string;
-  fit_score: number;
-  base_score: number;
-  preference_multiplier: number;
-  category: string;
-  compensation: string;
-  work_mode: string;
-  commitment: string;
-  duration_weeks: number | null;
-  reasoning: string;
-  job_listings: {
-    title: string;
-    company: string | null;
-    location_suburb: string | null;
-    distance_km: number | null;
-    url: string;
-    posted_date: string | null;
-  } | null;
 }
 
 export async function runNotifier(opts: { dryRun?: boolean } = {}): Promise<NotifyStats> {
@@ -95,11 +74,7 @@ export async function runNotifier(opts: { dryRun?: boolean } = {}): Promise<Noti
   // null listing rather than being excluded.
   const { data, error } = await db
     .from('matches')
-    .select(
-      'id,fit_score,base_score,preference_multiplier,category,compensation,work_mode,' +
-        'commitment,duration_weeks,reasoning,' +
-        'job_listings!inner(title,company,location_suburb,distance_km,url,posted_date)',
-    )
+    .select(MATCH_CARD_SELECT)
     .eq('status', 'new')
     .gte('fit_score', settings.notify_score_threshold)
     .is('job_listings.duplicate_of', null)
@@ -109,7 +84,9 @@ export async function runNotifier(opts: { dryRun?: boolean } = {}): Promise<Noti
 
   if (error) throw new Error(`match queue read failed: ${error.message}`);
 
-  const rows = (data ?? []) as unknown as MatchRow[];
+  const rows = ((data ?? []) as unknown as MatchCardRow[])
+    .map(toNotifiableMatch)
+    .filter((m): m is NonNullable<typeof m> => m !== null);
   stats.candidates = rows.length;
   if (rows.length === 0) return stats;
 
@@ -121,36 +98,14 @@ export async function runNotifier(opts: { dryRun?: boolean } = {}): Promise<Noti
     return stats;
   }
 
-  for (const row of batch) {
-    const listing = row.job_listings;
-    if (!listing) continue;
-
-    const match: NotifiableMatch = {
-      matchId: row.id,
-      fitScore: row.fit_score,
-      baseScore: row.base_score,
-      preferenceMultiplier: Number(row.preference_multiplier),
-      category: row.category,
-      compensation: row.compensation,
-      workMode: row.work_mode,
-      commitment: row.commitment,
-      durationWeeks: row.duration_weeks,
-      reasoning: row.reasoning,
-      title: listing.title,
-      company: listing.company,
-      locationSuburb: listing.location_suburb,
-      distanceKm: listing.distance_km === null ? null : Number(listing.distance_km),
-      url: listing.url,
-      postedDate: listing.posted_date,
-    };
-
+  for (const match of batch) {
     const text = formatMatch(match);
 
     try {
       const message = await sendMessage(env.TELEGRAM_BOT_TOKEN, {
         chatId: env.TELEGRAM_CHAT_ID,
         text,
-        keyboard: matchKeyboard(row.id),
+        keyboard: matchKeyboard(match.matchId),
       });
 
       // Log BEFORE flipping status. If the process dies between the two, the
@@ -158,7 +113,7 @@ export async function runNotifier(opts: { dryRun?: boolean } = {}): Promise<Noti
       // which costs one tap. Flipping first would risk a match that was never
       // actually delivered being marked notified and never seen again.
       await db.from('notification_log').insert({
-        match_id: row.id,
+        match_id: match.matchId,
         channel: 'telegram',
         telegram_chat_id: env.TELEGRAM_CHAT_ID,
         telegram_message_id: message.message_id,
@@ -169,20 +124,20 @@ export async function runNotifier(opts: { dryRun?: boolean } = {}): Promise<Noti
       const { error: statusError } = await db
         .from('matches')
         .update({ status: 'notified' })
-        .eq('id', row.id)
+        .eq('id', match.matchId)
         .eq('status', 'new');
       if (statusError) {
-        log.warn(`notify: sent but could not mark ${row.id} notified — ${statusError.message}`);
+        log.warn(`notify: sent but could not mark ${match.matchId} notified — ${statusError.message}`);
       }
 
       stats.sent++;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       stats.failed++;
-      log.error(`notify: ${listing.title} — ${message}`);
+      log.error(`notify: ${match.title} — ${message}`);
 
       await db.from('notification_log').insert({
-        match_id: row.id,
+        match_id: match.matchId,
         channel: 'telegram',
         telegram_chat_id: env.TELEGRAM_CHAT_ID,
         payload: text,
