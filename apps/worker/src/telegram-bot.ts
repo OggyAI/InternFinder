@@ -16,7 +16,9 @@ import {
   getUpdates,
   loadActiveFilter,
   log,
+  keyboardAfter,
   matchKeyboard,
+  savedKeyboard,
   sendMessage,
   setMyCommands,
   sleep,
@@ -186,6 +188,57 @@ async function commandTop(ctx: Context, args: string): Promise<void> {
   }
 }
 
+/**
+ * Saved matches, redrawn with the buttons that still mean something.
+ *
+ * Nothing else ever showed a saved match again with buttons: /top lists only
+ * undecided matches and /history is plain text. Cards saved before saving kept
+ * its buttons are on the phone with none at all, so this is the only way back
+ * to them from Telegram.
+ *
+ * Deliberately no duplicate or age filter. A role saved last month may now be
+ * past its closing date — which is exactly when you want to find it and
+ * dismiss it.
+ */
+async function commandSaved(ctx: Context): Promise<void> {
+  const db = getServiceClient();
+  const SHOWN = 10;
+  const { data, error, count } = await db
+    .from('matches')
+    .select(MATCH_CARD_SELECT, { count: 'exact' })
+    .eq('status', 'saved')
+    .order('updated_at', { ascending: false })
+    .limit(SHOWN);
+  if (error) throw new Error(error.message);
+
+  const matches = ((data ?? []) as unknown as MatchCardRow[])
+    .map(toNotifiableMatch)
+    .filter((m): m is NonNullable<typeof m> => m !== null);
+
+  if (matches.length === 0) {
+    await reply(ctx, 'Nothing saved. Tap ⭐ Save on a match to keep it here.');
+    return;
+  }
+
+  for (const match of matches) {
+    await sendMessage(ctx.token, {
+      chatId: ctx.chatId,
+      text: withDecision(formatMatch(match), 'saved'),
+      keyboard: savedKeyboard(match.matchId),
+    });
+    await new Promise((r) => setTimeout(r, 400));
+  }
+
+  const total = count ?? matches.length;
+  if (total > matches.length) {
+    await reply(
+      ctx,
+      `Showing the ${matches.length} most recently saved of ${total}. ` +
+        'Apply or dismiss some, then /saved again for the rest.',
+    );
+  }
+}
+
 // --- Buttons ---------------------------------------------------------------
 
 const DECISION_TOAST: Record<MatchDecision, string> = {
@@ -254,12 +307,15 @@ async function handleCallback(
     return;
   }
 
-  // Buttons dropped: the decision is made, and leaving them invites a second
-  // tap that would silently overwrite the first.
+  // Applied and dismissed are final, so their buttons go — a leftover button
+  // invites a second tap that silently overwrites the first. Saved is not
+  // final and keeps Applied and Dismiss; stripping those too is what made a
+  // saved match impossible to dismiss from Telegram.
   await editMessageText(ctx.token, {
     chatId: ctx.chatId,
     messageId: message.message_id,
     text: withDecision(card, decoded.decision),
+    keyboard: keyboardAfter(decoded.decision, decoded.matchId),
   });
 }
 
@@ -306,6 +362,9 @@ export async function handleUpdate(update: TelegramUpdate, ctx: Context): Promis
       break;
     case 'history':
       await commandHistory(ctx);
+      break;
+    case 'saved':
+      await commandSaved(ctx);
       break;
     case 'top':
       await commandTop(ctx, parsed.args);

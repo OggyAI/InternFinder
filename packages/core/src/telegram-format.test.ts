@@ -9,7 +9,9 @@ import {
   formatMatch,
   formatPostedDate,
   formatStats,
+  keyboardAfter,
   matchKeyboard,
+  savedKeyboard,
   withDecision,
   type NotifiableMatch,
 } from './telegram-format';
@@ -197,6 +199,30 @@ describe('callback data', () => {
     expect(decodeCallback('a:not-a-uuid')).toBeNull();
     expect(decodeCallback('z:' + base.matchId)).toBeNull();
     expect(decodeCallback(base.matchId)).toBeNull();
+  });
+});
+
+describe('buttons after a decision', () => {
+  const decisionsOf = (rows: ReturnType<typeof savedKeyboard>) =>
+    rows.flat().map((b) => decodeCallback(b.callback_data)?.decision);
+
+  it('keeps Applied and Dismiss on a saved match, and drops Save', () => {
+    // Saving is a holding state. Stripping every button made a saved match
+    // impossible to dismiss from Telegram, even once its window had closed.
+    expect(decisionsOf(savedKeyboard(base.matchId))).toEqual(['applied', 'dismissed']);
+    expect(keyboardAfter('saved', base.matchId)).toEqual(savedKeyboard(base.matchId));
+  });
+
+  it('clears the buttons after a final decision', () => {
+    expect(keyboardAfter('applied', base.matchId)).toBeUndefined();
+    expect(keyboardAfter('dismissed', base.matchId)).toBeUndefined();
+  });
+
+  it('points every saved-card button at the right match, within the 64-byte limit', () => {
+    for (const button of savedKeyboard(base.matchId).flat()) {
+      expect(decodeCallback(button.callback_data)?.matchId).toBe(base.matchId);
+      expect(Buffer.byteLength(button.callback_data, 'utf8')).toBeLessThanOrEqual(64);
+    }
   });
 });
 

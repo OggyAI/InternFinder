@@ -227,6 +227,35 @@ export function matchKeyboard(matchId: string): InlineButton[][] {
   ];
 }
 
+/**
+ * The buttons a SAVED match keeps.
+ *
+ * "Save" is a holding state, not a decision: the human still has to apply or
+ * let it go. Saving used to strip every button like a final decision did, so a
+ * saved role could never be dismissed from Telegram — not even once its
+ * application window had closed. Save itself is left off, since it is
+ * already saved.
+ */
+export function savedKeyboard(matchId: string): InlineButton[][] {
+  return [
+    [
+      { text: '✅ Applied', callback_data: encodeCallback('applied', matchId) },
+      { text: '🗑 Dismiss', callback_data: encodeCallback('dismissed', matchId) },
+    ],
+  ];
+}
+
+/**
+ * The keyboard a card should carry once a decision is recorded.
+ *
+ * Undefined means "no buttons": editing a message without reply_markup clears
+ * its keyboard, which is what applied and dismissed want — both are final, and
+ * a leftover button invites a second tap that silently overwrites the first.
+ */
+export function keyboardAfter(decision: MatchDecision, matchId: string): InlineButton[][] | undefined {
+  return decision === 'saved' ? savedKeyboard(matchId) : undefined;
+}
+
 const DECISION_SUFFIX: Record<MatchDecision, string> = {
   applied: '✅ Marked as applied',
   saved: '⭐ Saved for later',
@@ -350,6 +379,7 @@ export const HELP_TEXT = [
   '',
   '/stats — pipeline, spend and decisions',
   '/top — best matches not yet decided',
+  '/saved — matches you saved, to apply or dismiss',
   '/filters — current search criteria',
   '/history — what you have decided recently',
   '/pause — stop polling and notifying',
@@ -363,6 +393,7 @@ export const HELP_TEXT = [
 export const COMMANDS = [
   { command: 'stats', description: 'Pipeline, spend and decisions' },
   { command: 'top', description: 'Best matches not yet decided' },
+  { command: 'saved', description: 'Saved matches, to apply or dismiss' },
   { command: 'filters', description: 'Current search criteria' },
   { command: 'history', description: 'Recent decisions' },
   { command: 'pause', description: 'Stop polling and notifying' },
